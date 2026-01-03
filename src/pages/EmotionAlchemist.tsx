@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Brain, Send, Sparkles, RefreshCw, Save } from 'lucide-react';
+import { Brain, Send, Sparkles, RefreshCw, Save, Flame, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import Layout from '@/components/layout/Layout';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface AIResponse {
   reflection: string;
@@ -12,39 +15,136 @@ interface AIResponse {
   suggestion: string;
 }
 
+interface SavedSession {
+  id: string;
+  input_text: string;
+  reflection: string | null;
+  reframe: string | null;
+  suggestion: string | null;
+  generated_image_url: string | null;
+  created_at: string;
+}
+
 export default function EmotionAlchemist() {
+  const { user } = useAuth();
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [response, setResponse] = useState<AIResponse | null>(null);
-  const [savedSessions, setSavedSessions] = useState<{ input: string; response: AIResponse }[]>([]);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      fetchSavedSessions();
+    }
+  }, [user]);
+
+  const fetchSavedSessions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('emotion_alchemist_sessions')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      setSavedSessions(data || []);
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+    }
+  };
 
   const processEmotion = async () => {
     if (!input.trim()) return;
     
     setIsProcessing(true);
+    setResponse(null);
+    setGeneratedImage(null);
     
-    // Simulated AI response - in production, this would call your AI backend
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const aiResponse: AIResponse = {
-      reflection: `I hear that you're experiencing ${input.toLowerCase().includes('stress') ? 'stress' : input.toLowerCase().includes('sad') ? 'sadness' : input.toLowerCase().includes('angry') ? 'anger' : 'complex emotions'}. These feelings are valid and it's brave of you to acknowledge them. Your awareness of these emotions is the first step toward understanding and managing them.`,
-      reframe: `Instead of seeing this as overwhelming, consider this perspective: Every challenging emotion is an opportunity for growth. What you're feeling right now is temporary, and you have the strength to navigate through it. Many people have felt exactly as you do and have found their way to calmer waters.`,
-      suggestion: `Try this: Take 5 deep breaths, focusing on the exhale. Then, write down three small things you're grateful for today. This simple practice can help shift your emotional state and create space for positive thoughts.`
-    };
-    
-    setResponse(aiResponse);
-    setIsProcessing(false);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-emotion', {
+        body: { text: input, type: 'emotion-alchemist' }
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      setResponse({
+        reflection: data.reflection || '',
+        reframe: data.reframe || '',
+        suggestion: data.suggestion || ''
+      });
+    } catch (error: any) {
+      console.error('Error processing emotion:', error);
+      toast.error(error.message || 'Failed to process emotion');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const saveSession = () => {
-    if (response && input) {
-      setSavedSessions(prev => [...prev, { input, response }]);
+  const generateImage = async () => {
+    if (!input.trim()) return;
+
+    setIsGeneratingImage(true);
+
+    try {
+      // Use Pollinations API for image generation
+      const prompt = encodeURIComponent(`Abstract art representing the emotion: ${input}. Peaceful, therapeutic, calming colors, watercolor style.`);
+      const imageUrl = `https://image.pollinations.ai/prompt/${prompt}?width=512&height=512&nologo=true`;
+      
+      setGeneratedImage(imageUrl);
+      toast.success('Image generated!');
+    } catch (error) {
+      console.error('Error generating image:', error);
+      toast.error('Failed to generate image');
+    } finally {
+      setIsGeneratingImage(false);
     }
+  };
+
+  const saveSession = async () => {
+    if (!response || !input || !user) {
+      if (!user) toast.error('Please sign in to save');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('emotion_alchemist_sessions')
+        .insert({
+          user_id: user.id,
+          input_text: input,
+          reflection: response.reflection,
+          reframe: response.reframe,
+          suggestion: response.suggestion,
+          generated_image_url: generatedImage
+        });
+
+      if (error) throw error;
+
+      toast.success('Session saved! 💜');
+      fetchSavedSessions();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save session');
+    }
+  };
+
+  const burnSession = () => {
+    setInput('');
+    setResponse(null);
+    setGeneratedImage(null);
+    toast.success('Session released 🔥 Let it go...');
   };
 
   const resetSession = () => {
     setInput('');
     setResponse(null);
+    setGeneratedImage(null);
   };
 
   return (
@@ -88,6 +188,10 @@ export default function EmotionAlchemist() {
                     <Button variant="outline" onClick={saveSession} className="gap-2">
                       <Save className="w-4 h-4" />
                       Save
+                    </Button>
+                    <Button variant="outline" onClick={burnSession} className="gap-2 text-orange-500 hover:text-orange-600">
+                      <Flame className="w-4 h-4" />
+                      Burn
                     </Button>
                     <Button variant="outline" onClick={resetSession} className="gap-2">
                       <RefreshCw className="w-4 h-4" />
@@ -164,6 +268,43 @@ export default function EmotionAlchemist() {
                 <p className="text-muted-foreground leading-relaxed">{response.suggestion}</p>
               </CardContent>
             </Card>
+
+            {/* Image Generation */}
+            <Card className="mined-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="font-display text-lg flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <span className="text-2xl">🎨</span>
+                    Emotion Art
+                  </span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={generateImage}
+                    disabled={isGeneratingImage}
+                    className="gap-2"
+                  >
+                    <Image className="w-4 h-4" />
+                    {isGeneratingImage ? 'Generating...' : 'Generate Art'}
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {generatedImage ? (
+                  <motion.img
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    src={generatedImage}
+                    alt="Generated emotion art"
+                    className="w-full max-w-md mx-auto rounded-lg shadow-lg"
+                  />
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">
+                    Click "Generate Art" to create an abstract visualization of your emotions
+                  </p>
+                )}
+              </CardContent>
+            </Card>
           </motion.div>
         )}
 
@@ -172,11 +313,14 @@ export default function EmotionAlchemist() {
           <div className="mt-12">
             <h2 className="font-display text-xl font-semibold mb-4">Saved Sessions</h2>
             <div className="space-y-3">
-              {savedSessions.map((session, i) => (
-                <Card key={i} className="mined-card">
+              {savedSessions.map((session) => (
+                <Card key={session.id} className="mined-card">
                   <CardContent className="p-4">
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      "{session.input}"
+                    <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                      "{session.input_text}"
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(session.created_at).toLocaleDateString()}
                     </p>
                   </CardContent>
                 </Card>
@@ -193,6 +337,7 @@ export default function EmotionAlchemist() {
             <li>• Include specific situations or triggers if comfortable</li>
             <li>• You can share as little or as much as you'd like</li>
             <li>• Save meaningful sessions to revisit during challenging times</li>
+            <li>• Use "Burn" to symbolically release difficult emotions</li>
           </ul>
         </div>
       </motion.div>

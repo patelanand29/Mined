@@ -22,7 +22,7 @@ export default function Layout({ children }: LayoutProps) {
       <footer className="border-t border-border/50 py-8 mt-12">
         <div className="container mx-auto px-4 text-center text-muted-foreground text-sm">
           <p>© 2026 MINED. Unearth Your Peace.</p>
-          <p className="mt-2">Made with 💙 for students in India</p>
+          <p className="mt-2">Made with 💙 for students in IET DAVV</p>
         </div>
       </footer>
     </div>

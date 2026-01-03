@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react';
@@ -8,14 +8,23 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import minedLogo from '@/assets/mined-logo.png';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Auth() {
   const navigate = useNavigate();
+  const { user, loading, signIn, signUp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [signupForm, setSignupForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user && !loading) {
+      navigate('/');
+    }
+  }, [user, loading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,10 +34,18 @@ export default function Auth() {
     }
     
     setIsLoading(true);
-    // Simulate login
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    toast.success('Welcome back to MINED! 🌱');
-    navigate('/');
+    const { error } = await signIn(loginForm.email, loginForm.password);
+    
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        toast.error('Invalid email or password');
+      } else {
+        toast.error(error.message);
+      }
+    } else {
+      toast.success('Welcome back to MINED! 🌱');
+      navigate('/');
+    }
     setIsLoading(false);
   };
 
@@ -48,12 +65,28 @@ export default function Auth() {
     }
     
     setIsLoading(true);
-    // Simulate signup
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    toast.success('Welcome to MINED! Your journey begins now 🌱');
-    navigate('/');
+    const { error } = await signUp(signupForm.email, signupForm.password, signupForm.name);
+    
+    if (error) {
+      if (error.message.includes('already registered')) {
+        toast.error('This email is already registered. Please sign in instead.');
+      } else {
+        toast.error(error.message);
+      }
+    } else {
+      toast.success('Welcome to MINED! Your journey begins now 🌱');
+      navigate('/');
+    }
     setIsLoading(false);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen mined-gradient-bg flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-foreground"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen mined-gradient-bg flex items-center justify-center p-4">
@@ -109,12 +142,6 @@ export default function Auth() {
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
-                  </div>
-
-                  <div className="text-right">
-                    <Button variant="link" className="text-sm p-0 h-auto">
-                      Forgot password?
-                    </Button>
                   </div>
 
                   <Button type="submit" className="w-full gap-2" disabled={isLoading}>
