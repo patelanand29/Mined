@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Plus, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, CalendarDays, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
 import Layout from '@/components/layout/Layout';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const MOODS = [
   { emoji: '😄', label: 'Happy', color: 'bg-green-500' },
@@ -19,22 +22,56 @@ const MOODS = [
 ];
 
 interface MoodEntry {
-  date: string;
-  mood: typeof MOODS[0];
+  id: string;
+  mood_emoji: string;
+  mood_label: string;
   intensity: number;
-  note: string;
+  note: string | null;
+  ai_insight: string | null;
+  ai_emotion: string | null;
+  ai_intensity: string | null;
+  created_at: string;
 }
 
 export default function MoodCalendar() {
+  const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [moodEntries, setMoodEntries] = useState<MoodEntry[]>([
-    { date: '2026-01-01', mood: MOODS[0], intensity: 4, note: 'Started the new year feeling great!' },
-    { date: '2026-01-02', mood: MOODS[1], intensity: 3, note: 'Productive day' },
-  ]);
+  const [moodEntries, setMoodEntries] = useState<MoodEntry[]>([]);
   const [selectedMood, setSelectedMood] = useState<typeof MOODS[0] | null>(null);
   const [intensity, setIntensity] = useState([3]);
   const [note, setNote] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [aiInsight, setAiInsight] = useState<{ emotion: string; intensity: string; insight: string } | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      fetchMoodEntries();
+    }
+  }, [user, currentDate]);
+
+  const fetchMoodEntries = async () => {
+    try {
+      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+
+      const { data, error } = await supabase
+        .from('mood_entries')
+        .select('*')
+        .eq('user_id', user?.id)
+        .gte('created_at', startOfMonth.toISOString())
+        .lte('created_at', endOfMonth.toISOString())
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setMoodEntries(data || []);
+    } catch (error) {
+      console.error('Error fetching mood entries:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
@@ -50,27 +87,70 @@ export default function MoodCalendar() {
 
   const getMoodForDate = (day: number) => {
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return moodEntries.find(entry => entry.date === dateStr);
+    return moodEntries.find(entry => entry.created_at.startsWith(dateStr));
   };
 
-  const handleSaveMood = () => {
-    if (!selectedMood) return;
+  const getAIInsight = async (text: string) => {
+    if (!text.trim()) return null;
     
-    const today = new Date();
-    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    
-    const newEntry: MoodEntry = {
-      date: dateStr,
-      mood: selectedMood,
-      intensity: intensity[0],
-      note: note
-    };
+    try {
+      const response = await supabase.functions.invoke('analyze-emotion', {
+        body: { text, type: 'mood-analysis' }
+      });
 
-    setMoodEntries(prev => [...prev.filter(e => e.date !== dateStr), newEntry]);
-    setSelectedMood(null);
-    setIntensity([3]);
-    setNote('');
-    setDialogOpen(false);
+      if (response.error) throw response.error;
+      return response.data;
+    } catch (error) {
+      console.error('Error getting AI insight:', error);
+      return null;
+    }
+  };
+
+  const handleSaveMood = async () => {
+    if (!selectedMood || !user) {
+      if (!user) toast.error('Please sign in to log your mood');
+      return;
+    }
+    
+    setSaving(true);
+    
+    try {
+      // Get AI insight if there's a note
+      let aiData = null;
+      if (note.trim()) {
+        aiData = await getAIInsight(note);
+        if (aiData) {
+          setAiInsight(aiData);
+        }
+      }
+
+      const { error } = await supabase
+        .from('mood_entries')
+        .insert({
+          user_id: user.id,
+          mood_emoji: selectedMood.emoji,
+          mood_label: selectedMood.label,
+          intensity: intensity[0],
+          note: note || null,
+          ai_insight: aiData?.insight || null,
+          ai_emotion: aiData?.emotion || null,
+          ai_intensity: aiData?.intensity || null
+        });
+
+      if (error) throw error;
+
+      toast.success('Mood logged successfully! 🌟');
+      setSelectedMood(null);
+      setIntensity([3]);
+      setNote('');
+      setDialogOpen(false);
+      setAiInsight(null);
+      fetchMoodEntries();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save mood');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -142,9 +222,15 @@ export default function MoodCalendar() {
 
                 {/* Note */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Add a note (optional)</label>
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    Add a note (optional)
+                    <span className="text-xs text-primary flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      AI will provide insights
+                    </span>
+                  </label>
                   <Textarea
-                    placeholder="What's on your mind?"
+                    placeholder="What's on your mind? Describe your feelings..."
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
                     className="resize-none"
@@ -152,8 +238,23 @@ export default function MoodCalendar() {
                   />
                 </div>
 
-                <Button onClick={handleSaveMood} className="w-full" disabled={!selectedMood}>
-                  Save Mood Entry
+                {/* AI Insight Preview */}
+                {aiInsight && (
+                  <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
+                    <p className="text-sm font-medium text-primary mb-1 flex items-center gap-1">
+                      <Sparkles className="w-4 h-4" />
+                      AI Insight
+                    </p>
+                    <p className="text-sm text-muted-foreground">{aiInsight.insight}</p>
+                    <div className="flex gap-2 mt-2 text-xs">
+                      <span className="bg-muted px-2 py-1 rounded">{aiInsight.emotion}</span>
+                      <span className="bg-muted px-2 py-1 rounded">{aiInsight.intensity} intensity</span>
+                    </div>
+                  </div>
+                )}
+
+                <Button onClick={handleSaveMood} className="w-full" disabled={!selectedMood || saving}>
+                  {saving ? 'Saving...' : 'Save Mood Entry'}
                 </Button>
               </div>
             </DialogContent>
@@ -211,7 +312,7 @@ export default function MoodCalendar() {
                       {day}
                     </span>
                     {moodEntry && (
-                      <span className="text-lg mt-0.5">{moodEntry.mood.emoji}</span>
+                      <span className="text-lg mt-0.5">{moodEntry.mood_emoji}</span>
                     )}
                   </motion.div>
                 );
@@ -223,34 +324,57 @@ export default function MoodCalendar() {
         {/* Recent Entries */}
         <div className="mt-8">
           <h2 className="font-display text-xl font-semibold mb-4">Recent Entries</h2>
-          <div className="space-y-3">
-            {moodEntries.slice(-5).reverse().map((entry, i) => (
-              <motion.div
-                key={entry.date}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <Card className="mined-card">
-                  <CardContent className="flex items-center gap-4 p-4">
-                    <span className="text-3xl">{entry.mood.emoji}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{entry.mood.label}</span>
-                        <span className="text-xs text-muted-foreground">
-                          Intensity: {entry.intensity}/5
-                        </span>
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+            </div>
+          ) : moodEntries.length === 0 ? (
+            <Card className="mined-card">
+              <CardContent className="py-8 text-center">
+                <p className="text-muted-foreground">No mood entries yet. Start logging!</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {moodEntries.slice(0, 5).map((entry, i) => (
+                <motion.div
+                  key={entry.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                >
+                  <Card className="mined-card">
+                    <CardContent className="flex items-start gap-4 p-4">
+                      <span className="text-3xl">{entry.mood_emoji}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{entry.mood_label}</span>
+                          <span className="text-xs text-muted-foreground">
+                            Intensity: {entry.intensity}/5
+                          </span>
+                        </div>
+                        {entry.note && (
+                          <p className="text-sm text-muted-foreground mt-1">{entry.note}</p>
+                        )}
+                        {entry.ai_insight && (
+                          <div className="mt-2 p-2 rounded bg-primary/10 text-xs">
+                            <span className="font-medium text-primary flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" />
+                              AI: {entry.ai_emotion} ({entry.ai_intensity})
+                            </span>
+                            <p className="text-muted-foreground mt-1">{entry.ai_insight}</p>
+                          </div>
+                        )}
                       </div>
-                      {entry.note && (
-                        <p className="text-sm text-muted-foreground mt-1">{entry.note}</p>
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground">{entry.date}</span>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(entry.created_at).toLocaleDateString()}
+                      </span>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </motion.div>
     </Layout>
