@@ -19,9 +19,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import LandingAnimation from '@/components/LandingAnimation';
 import Layout from '@/components/layout/Layout';
+import { useAuth } from '@/hooks/useAuth';
 import minedLogo from '@/assets/mined-logo.png';
 
 export default function Index() {
+  const { user } = useAuth();
   const [showAnimation, setShowAnimation] = useState(false);
   const [animationComplete, setAnimationComplete] = useState(false);
 
@@ -192,25 +194,43 @@ export default function Index() {
                 Mining the depths of your mind to discover clarity, resilience, and inner strength.
               </motion.p>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="flex flex-wrap justify-center gap-4"
-              >
-                <Link to="/auth">
-                  <Button size="lg" className="gap-2 text-lg px-8 shadow-soft">
-                    Get Started
-                    <ArrowRight className="w-5 h-5" />
-                  </Button>
-                </Link>
-                <Link to="/mood-calendar">
-                  <Button size="lg" variant="outline" className="gap-2 text-lg px-8">
-                    <Sparkles className="w-5 h-5" />
-                    Explore Features
-                  </Button>
-                </Link>
-              </motion.div>
+              {!user && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="flex flex-wrap justify-center gap-4"
+                >
+                  <Link to="/auth">
+                    <Button size="lg" className="gap-2 text-lg px-8 shadow-soft">
+                      Sign In
+                      <ArrowRight className="w-5 h-5" />
+                    </Button>
+                  </Link>
+                  <Link to="/mood-calendar">
+                    <Button size="lg" variant="outline" className="gap-2 text-lg px-8">
+                      <Sparkles className="w-5 h-5" />
+                      Explore Features
+                    </Button>
+                  </Link>
+                </motion.div>
+              )}
+
+              {user && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="flex flex-wrap justify-center gap-4"
+                >
+                  <Link to="/mood-calendar">
+                    <Button size="lg" className="gap-2 text-lg px-8 shadow-soft">
+                      <Sparkles className="w-5 h-5" />
+                      Go to Dashboard
+                    </Button>
+                  </Link>
+                </motion.div>
+              )}
             </div>
           </section>
 
@@ -261,37 +281,39 @@ export default function Index() {
             </motion.div>
           </section>
 
-          {/* CTA Section */}
-          <section className="py-12 md:py-16">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.8 }}
-              className="mined-gradient-bg rounded-3xl p-8 md:p-12 text-center relative overflow-hidden"
-            >
-              {/* Decorative Elements */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 rounded-full blur-3xl" />
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-secondary/10 rounded-full blur-3xl" />
-              
-              <div className="relative z-10">
-                <h2 className="font-display text-3xl md:text-4xl font-bold text-primary-foreground mb-4">
-                  Start Your Journey Today
-                </h2>
-                <p className="text-primary-foreground/80 max-w-xl mx-auto mb-8">
-                  Join thousands of students who are already discovering their inner peace with MINED.
-                </p>
-                <Link to="/auth">
-                  <Button 
-                    size="lg" 
-                    className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 shadow-glow"
-                  >
-                    Create Free Account
-                    <ArrowRight className="w-5 h-5" />
-                  </Button>
-                </Link>
-              </div>
-            </motion.div>
-          </section>
+          {/* CTA Section - Only show if not logged in */}
+          {!user && (
+            <section className="py-12 md:py-16">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.8 }}
+                className="mined-gradient-bg rounded-3xl p-8 md:p-12 text-center relative overflow-hidden"
+              >
+                {/* Decorative Elements */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-48 h-48 bg-secondary/10 rounded-full blur-3xl" />
+                
+                <div className="relative z-10">
+                  <h2 className="font-display text-3xl md:text-4xl font-bold text-primary-foreground mb-4">
+                    Start Your Journey Today
+                  </h2>
+                  <p className="text-primary-foreground/80 max-w-xl mx-auto mb-8">
+                    Join thousands of students who are already discovering their inner peace with MINED.
+                  </p>
+                  <Link to="/auth">
+                    <Button 
+                      size="lg" 
+                      className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 shadow-glow"
+                    >
+                      Sign Up Now
+                      <ArrowRight className="w-5 h-5" />
+                    </Button>
+                  </Link>
+                </div>
+              </motion.div>
+            </section>
+          )}
 
           {/* Stats Section */}
           <section className="py-12">

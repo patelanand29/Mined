@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      cbt_records: {
+        Row: {
+          automatic_thought: string
+          created_at: string
+          distortions: string[] | null
+          emotion: string | null
+          id: string
+          new_emotion: string | null
+          reframed_thought: string | null
+          situation: string
+          user_id: string
+        }
+        Insert: {
+          automatic_thought: string
+          created_at?: string
+          distortions?: string[] | null
+          emotion?: string | null
+          id?: string
+          new_emotion?: string | null
+          reframed_thought?: string | null
+          situation: string
+          user_id: string
+        }
+        Update: {
+          automatic_thought?: string
+          created_at?: string
+          distortions?: string[] | null
+          emotion?: string | null
+          id?: string
+          new_emotion?: string | null
+          reframed_thought?: string | null
+          situation?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       comments: {
         Row: {
           content: string
@@ -183,6 +219,33 @@ export type Database = {
           tags?: string[] | null
           title?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      meditation_sessions: {
+        Row: {
+          created_at: string
+          cycles_completed: number
+          duration_seconds: number
+          id: string
+          technique_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          cycles_completed?: number
+          duration_seconds?: number
+          id?: string
+          technique_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          cycles_completed?: number
+          duration_seconds?: number
+          id?: string
+          technique_name?: string
           user_id?: string
         }
         Relationships: []

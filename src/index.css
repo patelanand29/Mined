@@ -111,6 +111,117 @@
     --sidebar-border: 225 20% 20%;
     --sidebar-ring: 210 70% 55%;
   }
+
+  /* Stranger Things Theme - Light Mode */
+  .stranger-things {
+    --background: 0 0% 95%;
+    --foreground: 0 0% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+
+    /* Primary - Stranger Things Red */
+    --primary: 0 85% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Dark Gray */
+    --secondary: 0 0% 85%;
+    --secondary-foreground: 0 0% 15%;
+
+    /* Muted - Soft Gray */
+    --muted: 0 0% 90%;
+    --muted-foreground: 0 0% 40%;
+
+    /* Accent - Blood Red */
+    --accent: 0 90% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 80%;
+    --input: 0 0% 80%;
+    --ring: 0 85% 45%;
+
+    /* Wellness Palette - Stranger Things colors */
+    --wellness-peace: 0 85% 50%;
+    --wellness-calm: 0 0% 30%;
+    --wellness-growth: 0 70% 40%;
+    --wellness-love: 0 90% 45%;
+    --wellness-energy: 0 80% 55%;
+    --wellness-clarity: 0 0% 50%;
+
+    /* Gradients - Red to Black */
+    --gradient-primary: linear-gradient(135deg, hsl(0 85% 45%), hsl(0 0% 15%));
+    --gradient-hero: linear-gradient(135deg, hsl(0 0% 10%) 0%, hsl(0 70% 25%) 50%, hsl(0 85% 35%) 100%);
+    --gradient-calm: linear-gradient(135deg, hsl(0 0% 92%), hsl(0 20% 90%));
+    --gradient-glow: radial-gradient(ellipse at center, hsl(0 85% 45% / 0.2) 0%, transparent 70%);
+
+    /* Shadows */
+    --shadow-soft: 0 4px 20px -4px hsl(0 85% 45% / 0.15);
+    --shadow-card: 0 2px 12px -2px hsl(0 0% 0% / 0.1);
+    --shadow-glow: 0 0 40px -10px hsl(0 85% 45% / 0.5);
+
+    --sidebar-background: 0 0% 95%;
+    --sidebar-foreground: 0 0% 10%;
+    --sidebar-primary: 0 85% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 85%;
+    --sidebar-accent-foreground: 0 0% 15%;
+    --sidebar-border: 0 0% 80%;
+    --sidebar-ring: 0 85% 45%;
+  }
+
+  /* Stranger Things Dark Mode */
+  .stranger-things.dark {
+    --background: 0 0% 5%;
+    --foreground: 0 0% 92%;
+
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 92%;
+
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 92%;
+
+    /* Primary - Neon Red */
+    --primary: 0 100% 50%;
+    --primary-foreground: 0 0% 5%;
+
+    /* Secondary - Dark Gray */
+    --secondary: 0 0% 20%;
+    --secondary-foreground: 0 0% 90%;
+
+    /* Muted - Charcoal */
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+
+    /* Accent - Bright Red */
+    --accent: 0 95% 55%;
+    --accent-foreground: 0 0% 5%;
+
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 0 100% 50%;
+
+    /* Gradients - Neon Red to Black */
+    --gradient-primary: linear-gradient(135deg, hsl(0 100% 50%), hsl(0 0% 10%));
+    --gradient-hero: linear-gradient(135deg, hsl(0 0% 3%) 0%, hsl(0 80% 20%) 50%, hsl(0 100% 35%) 100%);
+
+    --sidebar-background: 0 0% 8%;
+    --sidebar-foreground: 0 0% 92%;
+    --sidebar-primary: 0 100% 50%;
+    --sidebar-primary-foreground: 0 0% 5%;
+    --sidebar-accent: 0 0% 20%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-ring: 0 100% 50%;
+  }
 }
 
 @layer base {
@@ -125,6 +236,18 @@
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  /* Stranger Things font override */
+  .stranger-things h1,
+  .stranger-things h2,
+  .stranger-things h3,
+  .stranger-things h4,
+  .stranger-things h5,
+  .stranger-things h6 {
+    font-family: 'Nunito', system-ui, sans-serif;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
   }
 }
 
@@ -146,6 +269,15 @@
     background-clip: text;
   }
 
+  /* Stranger Things Text Gradient */
+  .stranger-things .mined-text-gradient {
+    background: linear-gradient(135deg, hsl(0 100% 50%) 0%, hsl(0 80% 40%) 50%, hsl(0 0% 30%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 0 0 30px hsl(0 100% 50% / 0.3);
+  }
+
   /* Card Styles */
   .mined-card {
     @apply bg-card rounded-2xl border border-border/50 overflow-hidden;
@@ -156,6 +288,11 @@
   .mined-card:hover {
     box-shadow: var(--shadow-soft);
     transform: translateY(-2px);
+  }
+
+  /* Stranger Things Card Glow */
+  .stranger-things .mined-card:hover {
+    box-shadow: 0 0 20px hsl(0 100% 50% / 0.2), var(--shadow-soft);
   }
 
   /* Glass Effect */
@@ -195,6 +332,11 @@
   .bg-wellness-love\/20 { background-color: hsl(var(--wellness-love) / 0.2); }
   .bg-wellness-energy\/20 { background-color: hsl(var(--wellness-energy) / 0.2); }
   .bg-wellness-clarity\/20 { background-color: hsl(var(--wellness-clarity) / 0.2); }
+
+  /* Stranger Things flickering effect */
+  .stranger-things .st-flicker {
+    animation: st-flicker 3s infinite;
+  }
 }
 
 @layer utilities {
@@ -284,5 +426,29 @@
 
   .animate-glow-spread {
     animation: glow-spread 1s ease-out forwards;
+  }
+
+  /* Stranger Things Flicker */
+  @keyframes st-flicker {
+    0%, 100% { opacity: 1; }
+    41% { opacity: 1; }
+    42% { opacity: 0.8; }
+    43% { opacity: 1; }
+    45% { opacity: 0.3; }
+    46% { opacity: 1; }
+  }
+
+  /* Stranger Things Red Glow Pulse */
+  @keyframes st-red-pulse {
+    0%, 100% { 
+      box-shadow: 0 0 20px hsl(0 100% 50% / 0.4);
+    }
+    50% { 
+      box-shadow: 0 0 40px hsl(0 100% 50% / 0.6);
+    }
+  }
+
+  .stranger-things .animate-pulse-glow {
+    animation: st-red-pulse 3s ease-in-out infinite;
   }
 }

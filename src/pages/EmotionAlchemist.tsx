@@ -30,6 +30,7 @@ export default function EmotionAlchemist() {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [response, setResponse] = useState<AIResponse | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
@@ -110,8 +111,11 @@ export default function EmotionAlchemist() {
   const saveSession = async () => {
     if (!response || !input || !user) {
       if (!user) toast.error('Please sign in to save');
+      if (!response) toast.error('Please transform your emotions first');
       return;
     }
+
+    setIsSaving(true);
 
     try {
       const { error } = await supabase
@@ -130,7 +134,10 @@ export default function EmotionAlchemist() {
       toast.success('Session saved! 💜');
       fetchSavedSessions();
     } catch (error: any) {
+      console.error('Save error:', error);
       toast.error(error.message || 'Failed to save session');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -185,9 +192,14 @@ export default function EmotionAlchemist() {
               <div className="flex gap-2">
                 {response && (
                   <>
-                    <Button variant="outline" onClick={saveSession} className="gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={saveSession} 
+                      className="gap-2"
+                      disabled={isSaving}
+                    >
                       <Save className="w-4 h-4" />
-                      Save
+                      {isSaving ? 'Saving...' : 'Save'}
                     </Button>
                     <Button variant="outline" onClick={burnSession} className="gap-2 text-orange-500 hover:text-orange-600">
                       <Flame className="w-4 h-4" />

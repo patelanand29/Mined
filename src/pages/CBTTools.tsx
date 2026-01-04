@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, ChevronRight, Check, RotateCcw, BookOpen } from 'lucide-react';
+import { Heart, ChevronRight, Check, RotateCcw, BookOpen, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import Layout from '@/components/layout/Layout';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const COGNITIVE_DISTORTIONS = [
   { id: 'catastrophizing', label: 'Catastrophizing', desc: 'Expecting the worst possible outcome' },
@@ -19,6 +22,7 @@ const COGNITIVE_DISTORTIONS = [
 ];
 
 interface ThoughtRecord {
+  id?: string;
   situation: string;
   automaticThought: string;
   emotion: string;
@@ -27,13 +31,48 @@ interface ThoughtRecord {
   newEmotion: string;
 }
 
+interface SavedRecord {
+  id: string;
+  situation: string;
+  automatic_thought: string;
+  emotion: string | null;
+  distortions: string[] | null;
+  reframed_thought: string | null;
+  new_emotion: string | null;
+  created_at: string;
+}
+
 export default function CBTTools() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'record' | 'distortions' | 'reframe'>('record');
   const [record, setRecord] = useState<Partial<ThoughtRecord>>({
     distortions: []
   });
-  const [savedRecords, setSavedRecords] = useState<ThoughtRecord[]>([]);
+  const [savedRecords, setSavedRecords] = useState<SavedRecord[]>([]);
   const [step, setStep] = useState(1);
+  const [saving, setSaving] = useState(false);
+  const [quickReframe, setQuickReframe] = useState({ negative: '', reframed: '' });
+
+  useEffect(() => {
+    if (user) {
+      fetchRecords();
+    }
+  }, [user]);
+
+  const fetchRecords = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('cbt_records')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSavedRecords(data || []);
+    } catch (error) {
+      console.error('Error fetching CBT records:', error);
+    }
+  };
 
   const handleDistortionToggle = (id: string) => {
     setRecord(prev => ({
@@ -44,11 +83,84 @@ export default function CBTTools() {
     }));
   };
 
-  const handleSave = () => {
-    if (record.situation && record.automaticThought && record.reframedThought) {
-      setSavedRecords(prev => [...prev, record as ThoughtRecord]);
+  const handleSave = async () => {
+    if (!record.situation || !record.automaticThought || !user) {
+      if (!user) toast.error('Please sign in to save records');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const { error } = await supabase
+        .from('cbt_records')
+        .insert({
+          user_id: user.id,
+          situation: record.situation,
+          automatic_thought: record.automaticThought,
+          emotion: record.emotion || null,
+          distortions: record.distortions || [],
+          reframed_thought: record.reframedThought || null,
+          new_emotion: record.newEmotion || null
+        });
+
+      if (error) throw error;
+
+      toast.success('Thought record saved! 💭');
       setRecord({ distortions: [] });
       setStep(1);
+      fetchRecords();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save record');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveQuickReframe = async () => {
+    if (!quickReframe.negative || !quickReframe.reframed || !user) {
+      if (!user) toast.error('Please sign in to save');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const { error } = await supabase
+        .from('cbt_records')
+        .insert({
+          user_id: user.id,
+          situation: 'Quick Reframe Exercise',
+          automatic_thought: quickReframe.negative,
+          reframed_thought: quickReframe.reframed,
+          distortions: []
+        });
+
+      if (error) throw error;
+
+      toast.success('Reframe saved! 🔄');
+      setQuickReframe({ negative: '', reframed: '' });
+      fetchRecords();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save reframe');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteRecord = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('cbt_records')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast.success('Record deleted');
+      setSavedRecords(prev => prev.filter(r => r.id !== id));
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete record');
     }
   };
 
@@ -251,9 +363,9 @@ export default function CBTTools() {
                     <ChevronRight className="w-4 h-4" />
                   </Button>
                 ) : (
-                  <Button onClick={handleSave} className="gap-2">
+                  <Button onClick={handleSave} className="gap-2" disabled={saving}>
                     <Check className="w-4 h-4" />
-                    Save Record
+                    {saving ? 'Saving...' : 'Save Record'}
                   </Button>
                 )}
               </div>
@@ -297,6 +409,8 @@ export default function CBTTools() {
                   placeholder="Write the negative thought you want to reframe..."
                   rows={3}
                   className="resize-none"
+                  value={quickReframe.negative}
+                  onChange={(e) => setQuickReframe(prev => ({ ...prev, negative: e.target.value }))}
                 />
               </div>
 
@@ -317,10 +431,18 @@ export default function CBTTools() {
                   placeholder="Write a more balanced perspective..."
                   rows={3}
                   className="resize-none"
+                  value={quickReframe.reframed}
+                  onChange={(e) => setQuickReframe(prev => ({ ...prev, reframed: e.target.value }))}
                 />
               </div>
 
-              <Button className="w-full">Save Reframe</Button>
+              <Button 
+                className="w-full" 
+                onClick={handleSaveQuickReframe}
+                disabled={saving || !quickReframe.negative || !quickReframe.reframed}
+              >
+                {saving ? 'Saving...' : 'Save Reframe'}
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -330,13 +452,30 @@ export default function CBTTools() {
           <div className="mt-8">
             <h2 className="font-display text-xl font-semibold mb-4">Saved Records</h2>
             <div className="space-y-3">
-              {savedRecords.map((r, i) => (
-                <Card key={i} className="mined-card">
+              {savedRecords.map((r) => (
+                <Card key={r.id} className="mined-card group">
                   <CardContent className="p-4">
-                    <p className="text-sm line-clamp-2">{r.situation}</p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {r.distortions.length} distortions identified
-                    </p>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <p className="text-sm line-clamp-2 mb-1">{r.situation}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {r.distortions && r.distortions.length > 0 
+                            ? `${r.distortions.length} distortions identified` 
+                            : 'Quick reframe'
+                          }
+                          {' • '}
+                          {new Date(r.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteRecord(r.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
