@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Wind, Play, Pause, RotateCcw, Check } from 'lucide-react';
+import { Wind, Play, Pause, RotateCcw, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Layout from '@/components/layout/Layout';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 type BreathingTechnique = {
   name: string;
@@ -45,16 +48,68 @@ const TECHNIQUES: BreathingTechnique[] = [
   },
 ];
 
+interface TechniqueStats {
+  technique_name: string;
+  total_cycles: number;
+  total_sessions: number;
+}
+
 export default function Meditation() {
+  const { user } = useAuth();
   const [selectedTechnique, setSelectedTechnique] = useState<BreathingTechnique>(TECHNIQUES[0]);
   const [isActive, setIsActive] = useState(false);
   const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [cyclesCompleted, setCyclesCompleted] = useState(0);
-  const [totalSessions, setTotalSessions] = useState(3);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+  const [techniqueStats, setTechniqueStats] = useState<TechniqueStats[]>([]);
+  const [todaysSessions, setTodaysSessions] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentPhase = selectedTechnique.phases[currentPhaseIndex];
+
+  useEffect(() => {
+    if (user) {
+      fetchStats();
+    }
+  }, [user]);
+
+  const fetchStats = async () => {
+    if (!user) return;
+
+    try {
+      // Fetch all meditation sessions for stats
+      const { data, error } = await supabase
+        .from('meditation_sessions')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Calculate stats per technique
+      const statsMap: Record<string, TechniqueStats> = {};
+      let todayCount = 0;
+      const today = new Date().toDateString();
+
+      (data || []).forEach(session => {
+        const name = session.technique_name;
+        if (!statsMap[name]) {
+          statsMap[name] = { technique_name: name, total_cycles: 0, total_sessions: 0 };
+        }
+        statsMap[name].total_cycles += session.cycles_completed;
+        statsMap[name].total_sessions += 1;
+
+        if (new Date(session.created_at).toDateString() === today) {
+          todayCount++;
+        }
+      });
+
+      setTechniqueStats(Object.values(statsMap));
+      setTodaysSessions(todayCount);
+    } catch (error) {
+      console.error('Error fetching meditation stats:', error);
+    }
+  };
 
   useEffect(() => {
     if (isActive) {
@@ -87,8 +142,39 @@ export default function Meditation() {
     if (!isActive) {
       setCurrentPhaseIndex(0);
       setCyclesCompleted(0);
+      setSessionStartTime(new Date());
     }
     setIsActive(!isActive);
+  };
+
+  const saveSession = async () => {
+    if (!user || cyclesCompleted === 0) {
+      if (cyclesCompleted === 0) toast.error('Complete at least one cycle to save');
+      return;
+    }
+
+    const duration = sessionStartTime 
+      ? Math.floor((new Date().getTime() - sessionStartTime.getTime()) / 1000)
+      : 0;
+
+    try {
+      const { error } = await supabase
+        .from('meditation_sessions')
+        .insert({
+          user_id: user.id,
+          technique_name: selectedTechnique.name,
+          cycles_completed: cyclesCompleted,
+          duration_seconds: duration
+        });
+
+      if (error) throw error;
+
+      toast.success('Session saved! 🧘');
+      fetchStats();
+      resetSession();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save session');
+    }
   };
 
   const resetSession = () => {
@@ -96,6 +182,7 @@ export default function Meditation() {
     setCurrentPhaseIndex(0);
     setTimeRemaining(0);
     setCyclesCompleted(0);
+    setSessionStartTime(null);
     if (intervalRef.current) clearInterval(intervalRef.current);
   };
 
@@ -115,6 +202,13 @@ export default function Meditation() {
     }
     return phase === 'hold' && currentPhaseIndex > 0 ? 1.3 : 1;
   };
+
+  const getStatsForTechnique = (name: string) => {
+    return techniqueStats.find(s => s.technique_name === name);
+  };
+
+  const totalCyclesAllTime = techniqueStats.reduce((sum, s) => sum + s.total_cycles, 0);
+  const totalSessionsAllTime = techniqueStats.reduce((sum, s) => sum + s.total_sessions, 0);
 
   return (
     <Layout>
@@ -138,25 +232,33 @@ export default function Meditation() {
 
         {/* Technique Selection */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          {TECHNIQUES.map((technique) => (
-            <Card
-              key={technique.name}
-              className={`mined-card cursor-pointer transition-all ${
-                selectedTechnique.name === technique.name
-                  ? 'ring-2 ring-primary'
-                  : 'hover:shadow-lg'
-              }`}
-              onClick={() => selectTechnique(technique)}
-            >
-              <CardContent className="p-4">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${technique.color} flex items-center justify-center mb-3`}>
-                  <Wind className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="font-display font-semibold text-foreground mb-1">{technique.name}</h3>
-                <p className="text-xs text-muted-foreground">{technique.description}</p>
-              </CardContent>
-            </Card>
-          ))}
+          {TECHNIQUES.map((technique) => {
+            const stats = getStatsForTechnique(technique.name);
+            return (
+              <Card
+                key={technique.name}
+                className={`mined-card cursor-pointer transition-all ${
+                  selectedTechnique.name === technique.name
+                    ? 'ring-2 ring-primary'
+                    : 'hover:shadow-lg'
+                }`}
+                onClick={() => selectTechnique(technique)}
+              >
+                <CardContent className="p-4">
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${technique.color} flex items-center justify-center mb-3`}>
+                    <Wind className="w-5 h-5 text-white" />
+                  </div>
+                  <h3 className="font-display font-semibold text-foreground mb-1">{technique.name}</h3>
+                  <p className="text-xs text-muted-foreground mb-2">{technique.description}</p>
+                  {stats && (
+                    <div className="text-xs text-primary font-medium">
+                      {stats.total_cycles} cycles • {stats.total_sessions} sessions
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {/* Breathing Animation */}
@@ -217,6 +319,12 @@ export default function Meditation() {
                     </>
                   )}
                 </Button>
+                {cyclesCompleted > 0 && (
+                  <Button variant="outline" size="lg" onClick={saveSession} className="gap-2">
+                    <Save className="w-5 h-5" />
+                    Save
+                  </Button>
+                )}
                 <Button variant="outline" size="lg" onClick={resetSession}>
                   <RotateCcw className="w-5 h-5" />
                 </Button>
@@ -259,10 +367,12 @@ export default function Meditation() {
         {/* Session History */}
         <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Sessions Today', value: totalSessions },
-            { label: 'Total Minutes', value: 15 },
-            { label: 'Current Streak', value: '3 days' },
-            { label: 'Favorite', value: 'Box' },
+            { label: 'Sessions Today', value: todaysSessions },
+            { label: 'Total Sessions', value: totalSessionsAllTime },
+            { label: 'Total Cycles', value: totalCyclesAllTime },
+            { label: 'Favorite', value: techniqueStats.length > 0 
+              ? techniqueStats.reduce((a, b) => a.total_sessions > b.total_sessions ? a : b).technique_name.split(' ')[0] 
+              : '-' },
           ].map((stat) => (
             <Card key={stat.label} className="mined-card">
               <CardContent className="p-4 text-center">

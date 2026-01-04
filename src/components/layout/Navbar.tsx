@@ -1,16 +1,20 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, User, Moon, Sun } from 'lucide-react';
+import { Menu, User, Moon, Sun, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import minedLogo from '@/assets/mined-logo.png';
 
 interface NavbarProps {
   onMenuClick: () => void;
 }
 
+type ThemeMode = 'light' | 'dark' | 'stranger-light' | 'stranger-dark';
+
 export default function Navbar({ onMenuClick }: NavbarProps) {
   const location = useLocation();
-  const [isDark, setIsDark] = useState(false);
+  const { user } = useAuth();
+  const [theme, setTheme] = useState<ThemeMode>('light');
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -21,9 +25,53 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const toggleTheme = () => {
-    setIsDark(!isDark);
-    document.documentElement.classList.toggle('dark');
+  useEffect(() => {
+    // Load saved theme from localStorage
+    const savedTheme = localStorage.getItem('mined-theme') as ThemeMode | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+      applyTheme(savedTheme);
+    }
+  }, []);
+
+  const applyTheme = (newTheme: ThemeMode) => {
+    const root = document.documentElement;
+    root.classList.remove('dark', 'stranger-things');
+    
+    if (newTheme === 'dark') {
+      root.classList.add('dark');
+    } else if (newTheme === 'stranger-light') {
+      root.classList.add('stranger-things');
+    } else if (newTheme === 'stranger-dark') {
+      root.classList.add('dark', 'stranger-things');
+    }
+  };
+
+  const cycleTheme = () => {
+    const themeOrder: ThemeMode[] = ['light', 'dark', 'stranger-light', 'stranger-dark'];
+    const currentIndex = themeOrder.indexOf(theme);
+    const nextIndex = (currentIndex + 1) % themeOrder.length;
+    const newTheme = themeOrder[nextIndex];
+    
+    setTheme(newTheme);
+    applyTheme(newTheme);
+    localStorage.setItem('mined-theme', newTheme);
+  };
+
+  const getThemeIcon = () => {
+    if (theme === 'stranger-light' || theme === 'stranger-dark') {
+      return <Zap className="w-5 h-5 text-red-500" />;
+    }
+    return theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />;
+  };
+
+  const getThemeTooltip = () => {
+    switch (theme) {
+      case 'light': return 'Dark Mode';
+      case 'dark': return 'Stranger Things';
+      case 'stranger-light': return 'Stranger Things Dark';
+      case 'stranger-dark': return 'Light Mode';
+    }
   };
 
   const navLinks = [
@@ -85,18 +133,28 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={toggleTheme}
+              onClick={cycleTheme}
               className="hover:bg-primary/10"
+              title={getThemeTooltip()}
             >
-              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              {getThemeIcon()}
             </Button>
             
-            <Link to="/auth">
-              <Button className="gap-2">
-                <User className="w-4 h-4" />
-                <span className="hidden sm:inline">Sign In</span>
-              </Button>
-            </Link>
+            {user ? (
+              <Link to="/profile">
+                <Button className="gap-2">
+                  <User className="w-4 h-4" />
+                  <span className="hidden sm:inline">Profile</span>
+                </Button>
+              </Link>
+            ) : (
+              <Link to="/auth">
+                <Button className="gap-2">
+                  <User className="w-4 h-4" />
+                  <span className="hidden sm:inline">Sign In</span>
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
