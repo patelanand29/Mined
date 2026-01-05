@@ -9,7 +9,7 @@ interface NavbarProps {
   onMenuClick: () => void;
 }
 
-type ThemeMode = 'light' | 'dark' | 'stranger-light' | 'stranger-dark';
+type ThemeMode = 'light' | 'dark' | 'stranger-things';
 
 export default function Navbar({ onMenuClick }: NavbarProps) {
   const location = useLocation();
@@ -28,7 +28,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
   useEffect(() => {
     // Load saved theme from localStorage
     const savedTheme = localStorage.getItem('mined-theme') as ThemeMode | null;
-    if (savedTheme) {
+    if (savedTheme && ['light', 'dark', 'stranger-things'].includes(savedTheme)) {
       setTheme(savedTheme);
       applyTheme(savedTheme);
     }
@@ -38,17 +38,33 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
     const root = document.documentElement;
     root.classList.remove('dark', 'stranger-things');
     
+    // Remove monster particles
+    document.querySelectorAll('.monster-particle').forEach(el => el.remove());
+    
     if (newTheme === 'dark') {
       root.classList.add('dark');
-    } else if (newTheme === 'stranger-light') {
+    } else if (newTheme === 'stranger-things') {
       root.classList.add('stranger-things');
-    } else if (newTheme === 'stranger-dark') {
-      root.classList.add('dark', 'stranger-things');
+      // Add monster particles for Stranger Things theme
+      addMonsterParticles();
+    }
+  };
+
+  const addMonsterParticles = () => {
+    const monsters = ['👾', '🕷️', '🦇', '👻', '🔴', '⚫'];
+    const container = document.body;
+    
+    for (let i = 0; i < 6; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'monster-particle';
+      particle.textContent = monsters[i % monsters.length];
+      particle.style.animationDelay = `${i * 1.5}s`;
+      container.appendChild(particle);
     }
   };
 
   const cycleTheme = () => {
-    const themeOrder: ThemeMode[] = ['light', 'dark', 'stranger-light', 'stranger-dark'];
+    const themeOrder: ThemeMode[] = ['light', 'dark', 'stranger-things'];
     const currentIndex = themeOrder.indexOf(theme);
     const nextIndex = (currentIndex + 1) % themeOrder.length;
     const newTheme = themeOrder[nextIndex];
@@ -59,8 +75,8 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
   };
 
   const getThemeIcon = () => {
-    if (theme === 'stranger-light' || theme === 'stranger-dark') {
-      return <Zap className="w-5 h-5 text-red-500" />;
+    if (theme === 'stranger-things') {
+      return <Zap className="w-5 h-5 text-red-500 st-flicker" />;
     }
     return theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />;
   };
@@ -69,8 +85,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
     switch (theme) {
       case 'light': return 'Dark Mode';
       case 'dark': return 'Stranger Things';
-      case 'stranger-light': return 'Stranger Things Dark';
-      case 'stranger-dark': return 'Light Mode';
+      case 'stranger-things': return 'Light Mode';
     }
   };
 
@@ -84,6 +99,8 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
   return (
     <nav 
       className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
+        theme === 'stranger-things' ? 'blood-drip relative' : ''
+      } ${
         scrolled 
           ? 'mined-glass border-b border-border/50 shadow-soft' 
           : 'bg-transparent'
@@ -103,8 +120,14 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
             </Button>
             
             <Link to="/" className="flex items-center gap-2">
-              <img src={minedLogo} alt="MINED" className="w-9 h-9" />
-              <span className="font-display text-xl font-bold mined-text-gradient hidden sm:inline">
+              <img 
+                src={minedLogo} 
+                alt="MINED" 
+                className={`w-9 h-9 ${theme === 'stranger-things' ? 'st-flicker' : ''}`} 
+              />
+              <span className={`font-display text-xl font-bold mined-text-gradient hidden sm:inline ${
+                theme === 'stranger-things' ? 'st-flicker' : ''
+              }`}>
                 MINED
               </span>
             </Link>
@@ -134,7 +157,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
               variant="ghost" 
               size="icon" 
               onClick={cycleTheme}
-              className="hover:bg-primary/10"
+              className={`hover:bg-primary/10 ${theme === 'stranger-things' ? 'animate-pulse-glow' : ''}`}
               title={getThemeTooltip()}
             >
               {getThemeIcon()}
