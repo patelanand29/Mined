@@ -38,8 +38,8 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
     const root = document.documentElement;
     root.classList.remove('dark', 'stranger-things');
     
-    // Remove monster particles
-    document.querySelectorAll('.monster-particle').forEach(el => el.remove());
+    // Remove all Stranger Things elements
+    document.querySelectorAll('.monster-particle, .upside-down-vine, .red-mist, .demogorgon-eyes').forEach(el => el.remove());
     
     if (newTheme === 'dark') {
       root.classList.add('dark');
@@ -51,16 +51,50 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
   };
 
   const addMonsterParticles = () => {
-    const monsters = ['👾', '🕷️', '🦇', '👻', '🔴', '⚫'];
+    // Creepy monster/creature emojis - more thematic
+    const monsters = ['🕷️', '🦇', '🕸️', '👁️', '🩸', '💀', '🔴', '⚫'];
     const container = document.body;
     
-    for (let i = 0; i < 6; i++) {
+    // Add monster particles
+    for (let i = 0; i < 8; i++) {
       const particle = document.createElement('div');
       particle.className = 'monster-particle';
       particle.textContent = monsters[i % monsters.length];
-      particle.style.animationDelay = `${i * 1.5}s`;
+      particle.style.animationDelay = `${i * 1.2}s`;
       container.appendChild(particle);
     }
+
+    // Add upside down vines from top
+    const vinePositions = [5, 18, 35, 55, 72, 88];
+    vinePositions.forEach((pos, i) => {
+      const vine = document.createElement('div');
+      vine.className = 'upside-down-vine';
+      vine.style.left = `${pos}%`;
+      vine.style.top = '0';
+      vine.style.animationDelay = `${i * 2}s`;
+      container.appendChild(vine);
+    });
+
+    // Add red mist at bottom
+    const mist = document.createElement('div');
+    mist.className = 'red-mist';
+    container.appendChild(mist);
+
+    // Add creepy eyes that blink occasionally
+    const eyePositions = [
+      { top: '25%', left: '3%' },
+      { top: '60%', right: '4%' },
+      { bottom: '30%', left: '6%' },
+    ];
+    eyePositions.forEach((pos, i) => {
+      const eye = document.createElement('div');
+      eye.className = 'demogorgon-eyes';
+      Object.entries(pos).forEach(([key, value]) => {
+        eye.style[key as any] = value;
+      });
+      eye.style.animationDelay = `${i * 2 + 1}s`;
+      container.appendChild(eye);
+    });
   };
 
   const cycleTheme = () => {
