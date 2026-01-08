@@ -36,7 +36,7 @@ interface MoodEntry {
 
 export default function MoodCalendar() {
   const { user } = useAuth();
-  const { isConnected, isLoading: calendarLoading, events, fetchEvents, createMoodEvent, getAuthUrl } = useGoogleCalendar();
+  const { isConnected, isLoading: calendarLoading, events, fetchEvents, createMoodEvent, connectGoogleCalendar } = useGoogleCalendar();
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [moodEntries, setMoodEntries] = useState<MoodEntry[]>([]);
@@ -196,10 +196,7 @@ export default function MoodCalendar() {
   };
 
   const handleConnectCalendar = async () => {
-    const url = await getAuthUrl();
-    if (url) {
-      window.location.href = url;
-    }
+    await connectGoogleCalendar();
   };
 
   const handleRefresh = async () => {
