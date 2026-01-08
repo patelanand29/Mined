@@ -13,11 +13,10 @@ export interface GoogleCalendarEvent {
 }
 
 export function useGoogleCalendar() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [events, setEvents] = useState<GoogleCalendarEvent[]>([]);
-  const [authUrl, setAuthUrl] = useState<string | null>(null);
 
   const checkConnection = useCallback(async () => {
     if (!user) {
@@ -26,74 +25,66 @@ export function useGoogleCalendar() {
     }
 
     try {
-      const { data, error } = await supabase.functions.invoke('google-calendar', {
-        body: { action: 'check_connection' }
-      });
-
-      if (error) throw error;
-
-      if (data.needsAuth) {
-        setIsConnected(false);
-        setAuthUrl(data.authUrl);
-      } else {
-        setIsConnected(true);
-      }
+      // Check if user has Google identity linked with calendar scopes
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      const googleIdentity = currentUser?.identities?.find(
+        (identity) => identity.provider === 'google'
+      );
+      
+      // Check if we have a provider token (indicates active OAuth session with scopes)
+      const hasProviderToken = !!session?.provider_token;
+      
+      setIsConnected(!!googleIdentity && hasProviderToken);
     } catch (error) {
       console.error('Error checking Google Calendar connection:', error);
       setIsConnected(false);
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, session]);
 
-  const getAuthUrl = useCallback(async () => {
+  const connectGoogleCalendar = useCallback(async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('google-calendar', {
-        body: { action: 'get_auth_url' }
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          scopes: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
+          redirectTo: `${window.location.origin}/mood-calendar`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
       });
 
-      if (error) throw error;
-      return data.authUrl;
-    } catch (error) {
-      console.error('Error getting auth URL:', error);
-      return null;
-    }
-  }, []);
-
-  const exchangeCode = useCallback(async (code: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('google-calendar', {
-        body: { action: 'exchange_code', code }
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        setIsConnected(true);
-        toast.success('Google Calendar connected successfully!');
-        return true;
+      if (error) {
+        toast.error('Failed to connect Google Calendar');
+        console.error('Google OAuth error:', error);
       }
-      return false;
     } catch (error) {
-      console.error('Error exchanging code:', error);
+      console.error('Error connecting to Google Calendar:', error);
       toast.error('Failed to connect Google Calendar');
-      return false;
     }
   }, []);
 
   const fetchEvents = useCallback(async (timeMin?: string, timeMax?: string) => {
-    if (!user || !isConnected) return [];
+    if (!user || !session?.provider_token) return [];
 
     try {
       const { data, error } = await supabase.functions.invoke('google-calendar', {
-        body: { action: 'list_events', timeMin, timeMax }
+        body: { 
+          action: 'list_events', 
+          timeMin, 
+          timeMax,
+          providerToken: session.provider_token 
+        }
       });
 
       if (error) throw error;
 
       if (data.needsAuth) {
         setIsConnected(false);
-        setAuthUrl(data.authUrl);
         return [];
       }
 
@@ -103,7 +94,7 @@ export function useGoogleCalendar() {
       console.error('Error fetching calendar events:', error);
       return [];
     }
-  }, [user, isConnected]);
+  }, [user, session]);
 
   const createMoodEvent = useCallback(async (moodData: {
     emoji: string;
@@ -112,7 +103,7 @@ export function useGoogleCalendar() {
     note?: string;
     date?: Date;
   }) => {
-    if (!user || !isConnected) return null;
+    if (!user || !session?.provider_token) return null;
 
     const eventDate = moodData.date || new Date();
     const eventData = {
@@ -129,7 +120,11 @@ export function useGoogleCalendar() {
 
     try {
       const { data, error } = await supabase.functions.invoke('google-calendar', {
-        body: { action: 'create_event', eventData }
+        body: { 
+          action: 'create_event', 
+          eventData,
+          providerToken: session.provider_token 
+        }
       });
 
       if (error) throw error;
@@ -138,35 +133,19 @@ export function useGoogleCalendar() {
       console.error('Error creating mood event:', error);
       return null;
     }
-  }, [user, isConnected]);
+  }, [user, session]);
 
   useEffect(() => {
     checkConnection();
   }, [checkConnection]);
 
-  // Handle OAuth callback
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    
-    if (code && user) {
-      exchangeCode(code).then((success) => {
-        if (success) {
-          // Clean up URL
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      });
-    }
-  }, [user, exchangeCode]);
-
   return {
     isConnected,
     isLoading,
     events,
-    authUrl,
     fetchEvents,
     createMoodEvent,
-    getAuthUrl,
+    connectGoogleCalendar,
     checkConnection,
   };
 }
