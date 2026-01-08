@@ -37,64 +37,69 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
   const applyTheme = (newTheme: ThemeMode) => {
     const root = document.documentElement;
     root.classList.remove('dark', 'stranger-things');
-    
-    // Remove all Stranger Things elements
-    document.querySelectorAll('.monster-particle, .upside-down-vine, .red-mist, .demogorgon-eyes').forEach(el => el.remove());
-    
+
+    // Remove Stranger Things overlay/effects
+    document.getElementById('st-overlay')?.remove();
+
     if (newTheme === 'dark') {
       root.classList.add('dark');
     } else if (newTheme === 'stranger-things') {
       root.classList.add('stranger-things');
-      // Add monster particles for Stranger Things theme
       addMonsterParticles();
     }
   };
 
   const addMonsterParticles = () => {
-    // Creepy monster/creature emojis - more thematic
-    const monsters = ['🕷️', '🦇', '🕸️', '👁️', '🩸', '💀', '🔴', '⚫'];
     const container = document.body;
-    
-    // Add monster particles
-    for (let i = 0; i < 8; i++) {
+
+    // Avoid duplicates
+    document.getElementById('st-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'st-overlay';
+    overlay.className = 'st-overlay';
+    container.appendChild(overlay);
+
+    // Subtle + thematic (no red dot / no eyes)
+    const sprites = ['🕷️', '🕸️', '🦇', '🩸', '💀'];
+
+    const particlePositions = [
+      { top: 10, left: 6, size: 28 },
+      { top: 18, left: 88, size: 22 },
+      { top: 40, left: 4, size: 24 },
+      { top: 58, left: 92, size: 24 },
+      { top: 72, left: 8, size: 20 },
+      { top: 82, left: 86, size: 22 },
+      { top: 30, left: 78, size: 18 },
+      { top: 65, left: 22, size: 20 },
+      { top: 48, left: 94, size: 18 },
+      { top: 24, left: 16, size: 18 },
+    ];
+
+    particlePositions.forEach((pos, i) => {
       const particle = document.createElement('div');
       particle.className = 'monster-particle';
-      particle.textContent = monsters[i % monsters.length];
-      particle.style.animationDelay = `${i * 1.2}s`;
-      container.appendChild(particle);
-    }
+      particle.textContent = sprites[i % sprites.length];
+      particle.style.top = `${pos.top}%`;
+      particle.style.left = `${pos.left}%`;
+      particle.style.fontSize = `${pos.size}px`;
+      particle.style.animationDelay = `${i * 0.9}s`;
+      overlay.appendChild(particle);
+    });
 
-    // Add upside down vines from top
-    const vinePositions = [5, 18, 35, 55, 72, 88];
-    vinePositions.forEach((pos, i) => {
+    const vinePositions = [6, 22, 38, 56, 74, 90];
+    vinePositions.forEach((left, i) => {
       const vine = document.createElement('div');
       vine.className = 'upside-down-vine';
-      vine.style.left = `${pos}%`;
+      vine.style.left = `${left}%`;
       vine.style.top = '0';
-      vine.style.animationDelay = `${i * 2}s`;
-      container.appendChild(vine);
+      vine.style.animationDelay = `${i * 1.6}s`;
+      overlay.appendChild(vine);
     });
 
-    // Add red mist at bottom
     const mist = document.createElement('div');
     mist.className = 'red-mist';
-    container.appendChild(mist);
-
-    // Add creepy eyes that blink occasionally
-    const eyePositions = [
-      { top: '25%', left: '3%' },
-      { top: '60%', right: '4%' },
-      { bottom: '30%', left: '6%' },
-    ];
-    eyePositions.forEach((pos, i) => {
-      const eye = document.createElement('div');
-      eye.className = 'demogorgon-eyes';
-      Object.entries(pos).forEach(([key, value]) => {
-        eye.style[key as any] = value;
-      });
-      eye.style.animationDelay = `${i * 2 + 1}s`;
-      container.appendChild(eye);
-    });
+    overlay.appendChild(mist);
   };
 
   const cycleTheme = () => {

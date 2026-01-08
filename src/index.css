@@ -305,17 +305,24 @@
   .bg-wellness-clarity\/20 { background-color: hsl(var(--wellness-clarity) / 0.2); }
 
   /* Stranger Things Effects */
-  
-  /* Blood Drip Effect - More Visible */
+
+  .stranger-things .st-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 30; /* below navbar */
+  }
+
+  /* Blood Drip Effect - More Noticeable */
   .stranger-things .blood-drip::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    height: 6px;
-    background: linear-gradient(90deg, 
-      hsl(0 100% 35%) 0%, 
+    height: 8px;
+    background: linear-gradient(90deg,
+      hsl(0 100% 35%) 0%,
       hsl(0 100% 50%) 15%,
       hsl(0 100% 40%) 25%,
       hsl(0 100% 55%) 35%,
@@ -327,100 +334,81 @@
       hsl(0 100% 50%) 100%
     );
     animation: blood-drip-flow 6s ease-in-out infinite;
-    filter: drop-shadow(0 2px 8px hsl(0 100% 50% / 0.6));
+    filter: drop-shadow(0 3px 10px hsl(0 100% 50% / 0.7));
   }
 
   .stranger-things .blood-drip::after {
     content: '';
     position: absolute;
-    top: 6px;
-    left: 12%;
-    width: 5px;
+    top: 8px;
+    left: 14%;
+    width: 6px;
     height: 0;
-    background: linear-gradient(to bottom, hsl(0 100% 50%), hsl(0 100% 30%) 70%, transparent);
+    background: linear-gradient(to bottom, hsl(0 100% 55%), hsl(0 100% 25%) 70%, transparent);
     border-radius: 0 0 50% 50%;
-    animation: drip 3s ease-in-out infinite;
-    filter: drop-shadow(0 4px 6px hsl(0 100% 50% / 0.5));
+    animation: drip 3.2s ease-in-out infinite;
+    filter: drop-shadow(0 6px 10px hsl(0 100% 50% / 0.55));
   }
 
-  /* Additional blood drips */
+  /* Additional blood drips (rendered as elements) */
   .stranger-things .blood-drip-extra {
     position: absolute;
-    top: 6px;
-    width: 4px;
+    top: 8px;
+    width: 5px;
     height: 0;
-    background: linear-gradient(to bottom, hsl(0 100% 50%), hsl(0 100% 25%) 80%, transparent);
+    background: linear-gradient(to bottom, hsl(0 100% 55%), hsl(0 100% 22%) 80%, transparent);
     border-radius: 0 0 50% 50%;
-    filter: drop-shadow(0 3px 5px hsl(0 100% 50% / 0.4));
+    filter: drop-shadow(0 5px 8px hsl(0 100% 50% / 0.45));
   }
 
-  /* Monster Particles - More Visible */
+  /* Monster Particles - Professional motion (fade + drift) */
   .stranger-things .monster-particle {
-    position: fixed;
-    pointer-events: none;
-    z-index: 9999;
-    font-size: 24px;
-    opacity: 0.8;
-    filter: drop-shadow(0 0 10px hsl(0 100% 50% / 0.5));
-    animation: float-particle 8s ease-in-out infinite;
+    position: absolute;
+    opacity: 0;
+    filter: drop-shadow(0 0 14px hsl(0 100% 50% / 0.55));
+    text-shadow: 0 0 12px hsl(0 100% 50% / 0.6);
+    will-change: transform, opacity;
+    animation: float-particle 9s cubic-bezier(0.22, 1, 0.36, 1) infinite;
   }
-
-  .stranger-things .monster-particle:nth-child(1) { top: 8%; left: 4%; animation-delay: 0s; font-size: 28px; }
-  .stranger-things .monster-particle:nth-child(2) { top: 15%; right: 6%; animation-delay: 1.5s; font-size: 22px; }
-  .stranger-things .monster-particle:nth-child(3) { bottom: 12%; left: 8%; animation-delay: 3s; font-size: 26px; }
-  .stranger-things .monster-particle:nth-child(4) { bottom: 20%; right: 4%; animation-delay: 4.5s; font-size: 24px; }
-  .stranger-things .monster-particle:nth-child(5) { top: 45%; left: 2%; animation-delay: 0.8s; font-size: 20px; }
-  .stranger-things .monster-particle:nth-child(6) { top: 65%; right: 2%; animation-delay: 2.3s; font-size: 22px; }
-  .stranger-things .monster-particle:nth-child(7) { top: 35%; right: 8%; animation-delay: 5s; font-size: 18px; }
-  .stranger-things .monster-particle:nth-child(8) { bottom: 35%; left: 5%; animation-delay: 6s; font-size: 20px; }
 
   /* Upside Down Vines/Tentacles */
   .stranger-things .upside-down-vine {
-    position: fixed;
+    position: absolute;
     width: 3px;
-    background: linear-gradient(to bottom, 
-      hsl(0 100% 40%), 
+    background: linear-gradient(to bottom,
+      hsl(0 100% 40%),
       hsl(0 80% 25%) 50%,
       hsl(0 60% 15%)
     );
     border-radius: 0 0 2px 2px;
-    pointer-events: none;
-    z-index: 9998;
     animation: vine-grow 12s ease-in-out infinite;
-    filter: drop-shadow(0 0 5px hsl(0 100% 50% / 0.3));
+    filter: drop-shadow(0 0 7px hsl(0 100% 50% / 0.35));
+    will-change: height, opacity, transform;
   }
 
   /* Red Fog/Mist at bottom */
   .stranger-things .red-mist {
-    position: fixed;
+    position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 120px;
-    background: linear-gradient(to top, 
-      hsl(0 100% 20% / 0.3) 0%,
-      hsl(0 100% 30% / 0.15) 40%,
+    height: 140px;
+    background: linear-gradient(to top,
+      hsl(0 100% 20% / 0.35) 0%,
+      hsl(0 100% 30% / 0.16) 40%,
       transparent 100%
     );
-    pointer-events: none;
-    z-index: 9997;
     animation: mist-pulse 8s ease-in-out infinite;
   }
 
-  /* Glowing red eyes effect */
-  .stranger-things .demogorgon-eyes {
-    position: fixed;
-    width: 8px;
-    height: 8px;
-    background: hsl(0 100% 50%);
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 9999;
-    box-shadow: 
-      0 0 10px hsl(0 100% 50%),
-      0 0 20px hsl(0 100% 50%),
-      0 0 30px hsl(0 100% 40%);
-    animation: eyes-blink 6s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) {
+    .stranger-things .monster-particle,
+    .stranger-things .upside-down-vine,
+    .stranger-things .red-mist,
+    .stranger-things .blood-drip::before,
+    .stranger-things .blood-drip::after {
+      animation: none !important;
+    }
   }
 }
 

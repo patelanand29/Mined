@@ -45,11 +45,25 @@ Deno.serve(async (req) => {
     
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
     const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
-    // This redirect URI should be your app URL where the OAuth callback lands
-    const redirectUri = Deno.env.get('GOOGLE_REDIRECT_URI') || 'https://6ada2be1-9d0b-4af1-8c00-d6283ed1aedc.lovableproject.com/mood-calendar';
+
+    const DEFAULT_REDIRECT_URI = 'https://6ada2be1-9d0b-4af1-8c00-d6283ed1aedc.lovableproject.com/mood-calendar';
+    const envRedirectUri = (Deno.env.get('GOOGLE_REDIRECT_URI') ?? '').trim();
+    const origin = (req.headers.get('origin') ?? '').trim();
+    const originRedirectUri = origin
+      ? `${origin.replace(/\/$/, '')}/mood-calendar`
+      : DEFAULT_REDIRECT_URI;
+
+    // If GOOGLE_REDIRECT_URI is accidentally set to the auth callback URL, it will break this flow.
+    // In that case, fall back to the calling app's origin.
+    const redirectUri = (!envRedirectUri || envRedirectUri.includes('/auth/v1/callback'))
+      ? originRedirectUri
+      : envRedirectUri;
 
     console.log('Google Calendar action:', action);
     console.log('Redirect URI configured:', redirectUri);
+    if (envRedirectUri && envRedirectUri.includes('/auth/v1/callback')) {
+      console.warn('GOOGLE_REDIRECT_URI points to /auth/v1/callback; using app callback instead.');
+    }
 
     if (!clientId || !clientSecret) {
       console.error('Missing Google OAuth credentials');
