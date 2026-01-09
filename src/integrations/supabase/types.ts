@@ -464,7 +464,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_comments_secure: {
+        Args: { p_post_id: string }
+        Returns: {
+          content: string
+          created_at: string
+          id: string
+          is_anonymous: boolean
+          post_id: string
+          user_id: string
+        }[]
+      }
+      get_community_posts_secure: {
+        Args: never
+        Returns: {
+          content: string
+          created_at: string
+          helpful_count: number
+          id: string
+          is_anonymous: boolean
+          relate_count: number
+          support_count: number
+          tags: string[]
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
