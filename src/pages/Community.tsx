@@ -57,22 +57,18 @@ export default function Community() {
 
   const fetchPosts = async () => {
     try {
+      // Use secure RPC function that masks user_id for anonymous posts
       const { data: postsData, error } = await supabase
-        .from('community_posts')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .rpc('get_community_posts_secure');
 
       if (error) throw error;
 
       // Fetch comments and reactions for each post
       const postsWithDetails = await Promise.all(
         (postsData || []).map(async (post) => {
-          // Fetch comments
+          // Use secure RPC function that masks user_id for anonymous comments
           const { data: comments } = await supabase
-            .from('comments')
-            .select('*')
-            .eq('post_id', post.id)
-            .order('created_at', { ascending: true });
+            .rpc('get_comments_secure', { p_post_id: post.id });
 
           // Fetch user reaction if logged in
           let userReaction;
@@ -86,9 +82,9 @@ export default function Community() {
             userReaction = reaction?.reaction_type;
           }
 
-          // Get author name if not anonymous
+          // Get author name if not anonymous (user_id will be null for anonymous posts)
           let authorName = 'Anonymous';
-          if (!post.is_anonymous) {
+          if (!post.is_anonymous && post.user_id) {
             const { data: profile } = await supabase
               .from('profiles')
               .select('full_name')
