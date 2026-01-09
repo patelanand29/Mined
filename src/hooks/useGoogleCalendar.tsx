@@ -69,15 +69,14 @@ export function useGoogleCalendar() {
   }, []);
 
   const fetchEvents = useCallback(async (timeMin?: string, timeMax?: string) => {
-    if (!user || !session?.provider_token) return [];
+    if (!user) return [];
 
     try {
       const { data, error } = await supabase.functions.invoke('google-calendar', {
         body: { 
           action: 'list_events', 
           timeMin, 
-          timeMax,
-          providerToken: session.provider_token 
+          timeMax
         }
       });
 
@@ -94,7 +93,7 @@ export function useGoogleCalendar() {
       console.error('Error fetching calendar events:', error);
       return [];
     }
-  }, [user, session]);
+  }, [user]);
 
   const createMoodEvent = useCallback(async (moodData: {
     emoji: string;
@@ -103,7 +102,7 @@ export function useGoogleCalendar() {
     note?: string;
     date?: Date;
   }) => {
-    if (!user || !session?.provider_token) return null;
+    if (!user) return null;
 
     const eventDate = moodData.date || new Date();
     const eventData = {
@@ -122,8 +121,7 @@ export function useGoogleCalendar() {
       const { data, error } = await supabase.functions.invoke('google-calendar', {
         body: { 
           action: 'create_event', 
-          eventData,
-          providerToken: session.provider_token 
+          eventData
         }
       });
 
@@ -133,7 +131,7 @@ export function useGoogleCalendar() {
       console.error('Error creating mood event:', error);
       return null;
     }
-  }, [user, session]);
+  }, [user]);
 
   useEffect(() => {
     checkConnection();
