@@ -1,15 +1,15 @@
 
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**URL**: https://mined.lovable.app/
 
-🧠 MINED — Mental Wellness Platform
+**🧠 MINED — Mental Wellness Platform**
 
 
 MINED is a student-focused mental health, emotional wellness, and peer-support platform designed to help young minds mine the depths of their thoughts and discover clarity, resilience, and emotional strength.
 Built with a modern web stack and a creative Stranger Things–inspired theme, MINED combines technology, empathy, and community to support mental well-being.
 
 
-✨ Features
+**✨ Features**
 
 
 🔐 Authentication & User Profiles
@@ -38,9 +38,9 @@ Built with a modern web stack and a creative Stranger Things–inspired theme, M
 
 🎨 Stranger Things themed UI
 
-🛠 Tech Stack
+**🛠 Tech Stack**
 
-Frontend & Core
+**Frontend & Core**
 
 
 React 18
@@ -52,7 +52,7 @@ TypeScript
 Vite
 
 
-Backend & Infrastructure
+**Backend & Infrastructure**
 
 
 Supabase
@@ -73,7 +73,7 @@ Supabase Edge Functions
 Deno (runtime for edge functions)
 
 
-AI & Machine Learning
+**AI & Machine Learning**
 
 
 Lovable AI (AI Gateway)
@@ -82,7 +82,7 @@ Lovable AI (AI Gateway)
 Google Gemini 2.5 Flash (LLM)
 
 
-UI, Styling & Animations
+**UI, Styling & Animations**
 
 
 Tailwind CSS
@@ -100,7 +100,7 @@ Framer Motion
 Lucide React
 
 
-Data Handling & Validation
+**Data Handling & Validation**
 
 
 TanStack Query (React Query)
@@ -112,7 +112,7 @@ React Hook Form
 Zod
 Recharts
 
-External APIs
+**External APIs**
 Google Calendar API
 
-Built with ❤️ for students by Team string "SPIRIT"
+_Built with ❤️ for students by Team string "SPIRIT"_
