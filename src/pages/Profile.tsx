@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { User, Mail, Edit2, Save, TrendingUp, Calendar, BookOpen, LogOut } from 'lucide-react';
+import { User, Mail, Edit2, Save, TrendingUp, Calendar, BookOpen, LogOut, Wind, Clock, RotateCcw, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,13 @@ interface MoodStats {
   averageMood: string;
 }
 
+interface MeditationStats {
+  totalSessions: number;
+  totalMinutes: number;
+  totalCycles: number;
+  favoriteTechnique: string;
+}
+
 export default function Profile() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -33,11 +40,18 @@ export default function Profile() {
   const [profile, setProfile] = useState<Profile>({ full_name: '', bio: '', avatar_url: '' });
   const [editedProfile, setEditedProfile] = useState<Profile>({ full_name: '', bio: '', avatar_url: '' });
   const [moodStats, setMoodStats] = useState<MoodStats>({ totalEntries: 0, thisMonth: 0, averageMood: '😊' });
+  const [meditationStats, setMeditationStats] = useState<MeditationStats>({ 
+    totalSessions: 0, 
+    totalMinutes: 0, 
+    totalCycles: 0, 
+    favoriteTechnique: 'None yet' 
+  });
 
   useEffect(() => {
     if (user) {
       fetchProfile();
       fetchMoodStats();
+      fetchMeditationStats();
     }
   }, [user]);
 
@@ -85,6 +99,50 @@ export default function Profile() {
       });
     } catch (error) {
       console.error('Error fetching mood stats:', error);
+    }
+  };
+
+  const fetchMeditationStats = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('meditation_sessions')
+        .select('*')
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const totalSessions = data.length;
+        const totalSeconds = data.reduce((sum, s) => sum + (s.duration_seconds || 0), 0);
+        const totalMinutes = Math.round(totalSeconds / 60);
+        const totalCycles = data.reduce((sum, s) => sum + (s.cycles_completed || 0), 0);
+
+        // Find favorite technique
+        const techniqueCounts: Record<string, number> = {};
+        data.forEach(s => {
+          if (s.technique_name) {
+            techniqueCounts[s.technique_name] = (techniqueCounts[s.technique_name] || 0) + 1;
+          }
+        });
+
+        let favoriteTechnique = 'None yet';
+        let maxCount = 0;
+        for (const [technique, count] of Object.entries(techniqueCounts)) {
+          if (count > maxCount) {
+            maxCount = count;
+            favoriteTechnique = technique;
+          }
+        }
+
+        setMeditationStats({
+          totalSessions,
+          totalMinutes,
+          totalCycles,
+          favoriteTechnique
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching meditation stats:', error);
     }
   };
 
@@ -216,8 +274,12 @@ export default function Profile() {
           </CardContent>
         </Card>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Mood Stats */}
+        <h2 className="font-display text-xl font-semibold mb-4 flex items-center gap-2">
+          <Calendar className="w-5 h-5 text-primary" />
+          Mood Stats
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Card className="mined-card">
             <CardContent className="p-5 text-center">
               <Calendar className="w-8 h-8 text-primary mx-auto mb-2" />
@@ -237,6 +299,46 @@ export default function Profile() {
               <BookOpen className="w-8 h-8 text-cyan-600 mx-auto mb-2" />
               <div className="font-display text-2xl font-bold">{moodStats.averageMood}</div>
               <div className="text-sm text-muted-foreground">Most Common Mood</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Meditation Stats */}
+        <h2 className="font-display text-xl font-semibold mb-4 flex items-center gap-2">
+          <Wind className="w-5 h-5 text-teal-600" />
+          Meditation & Breathing
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="mined-card">
+            <CardContent className="p-5 text-center">
+              <Wind className="w-8 h-8 text-teal-600 mx-auto mb-2" />
+              <div className="font-display text-2xl font-bold">{meditationStats.totalSessions}</div>
+              <div className="text-sm text-muted-foreground">Total Sessions</div>
+            </CardContent>
+          </Card>
+          <Card className="mined-card">
+            <CardContent className="p-5 text-center">
+              <Clock className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+              <div className="font-display text-2xl font-bold">{meditationStats.totalMinutes}</div>
+              <div className="text-sm text-muted-foreground">Total Minutes</div>
+            </CardContent>
+          </Card>
+          <Card className="mined-card">
+            <CardContent className="p-5 text-center">
+              <RotateCcw className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+              <div className="font-display text-2xl font-bold">{meditationStats.totalCycles}</div>
+              <div className="text-sm text-muted-foreground">Total Cycles</div>
+            </CardContent>
+          </Card>
+          <Card className="mined-card">
+            <CardContent className="p-5 text-center">
+              <Heart className="w-8 h-8 text-rose-600 mx-auto mb-2" />
+              <div className="font-display text-xl font-bold truncate" title={meditationStats.favoriteTechnique}>
+                {meditationStats.favoriteTechnique.length > 12 
+                  ? meditationStats.favoriteTechnique.substring(0, 10) + '...' 
+                  : meditationStats.favoriteTechnique}
+              </div>
+              <div className="text-sm text-muted-foreground">Favorite Technique</div>
             </CardContent>
           </Card>
         </div>
