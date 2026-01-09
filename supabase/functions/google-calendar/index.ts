@@ -14,6 +14,8 @@ interface GoogleCalendarEvent {
   colorId?: string;
 }
 
+const VALID_ACTIONS = ['check_connection', 'list_events', 'create_event'];
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -21,17 +23,25 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
         global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
+          headers: { Authorization: authHeader },
         },
       }
     );
 
-    // Verify user is authenticated
+    // Verify user is authenticated and get session
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     if (authError || !user) {
       console.error('Auth error:', authError);
@@ -41,7 +51,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { action, timeMin, timeMax, eventData, providerToken } = await req.json();
+    // Get the session to retrieve the provider token server-side
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError) {
+      console.error('Session error:', sessionError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to get session' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { action, timeMin, timeMax, eventData } = await req.json();
+
+    // Input validation
+    if (!action || !VALID_ACTIONS.includes(action)) {
+      return new Response(
+        JSON.stringify({ error: `Invalid action. Must be one of: ${VALID_ACTIONS.join(', ')}` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     console.log(`Processing action: ${action} for user: ${user.id}`);
 
@@ -57,17 +85,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    // For calendar operations, we need the provider token passed from the client
+    // For calendar operations, get the provider token from the session (server-side)
+    const providerToken = session?.provider_token;
     if (!providerToken) {
-      console.log('No provider token provided');
+      console.log('No provider token in session');
       return new Response(
-        JSON.stringify({ needsAuth: true, error: 'No provider token' }),
+        JSON.stringify({ needsAuth: true, error: 'No provider token - please reconnect Google Calendar' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // List events
     if (action === 'list_events') {
+      // Validate timeMin and timeMax if provided
+      if (timeMin && typeof timeMin !== 'string') {
+        return new Response(
+          JSON.stringify({ error: 'timeMin must be a string' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (timeMax && typeof timeMax !== 'string') {
+        return new Response(
+          JSON.stringify({ error: 'timeMax must be a string' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       console.log('Fetching calendar events...');
       const events = await fetchCalendarEvents(providerToken, timeMin, timeMax);
       return new Response(
@@ -78,6 +121,26 @@ Deno.serve(async (req) => {
 
     // Create event
     if (action === 'create_event') {
+      // Validate eventData
+      if (!eventData || typeof eventData !== 'object') {
+        return new Response(
+          JSON.stringify({ error: 'eventData is required and must be an object' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (!eventData.summary || typeof eventData.summary !== 'string') {
+        return new Response(
+          JSON.stringify({ error: 'eventData.summary is required and must be a string' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (eventData.summary.length > 1000) {
+        return new Response(
+          JSON.stringify({ error: 'eventData.summary must be less than 1000 characters' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       console.log('Creating calendar event...');
       const event = await createCalendarEvent(providerToken, eventData);
       return new Response(
@@ -135,7 +198,7 @@ async function fetchCalendarEvents(
 
 async function createCalendarEvent(
   accessToken: string,
-  eventData: any
+  eventData: { summary: string; description?: string; start: object; end: object; colorId?: string }
 ): Promise<GoogleCalendarEvent> {
   const response = await fetch(
     'https://www.googleapis.com/calendar/v3/calendars/primary/events',
