@@ -49,6 +49,23 @@ export default function Auth() {
     setIsLoading(false);
   };
 
+  // Validate password strength
+  const validatePassword = (password: string): string | null => {
+    if (password.length < 12) {
+      return 'Password must be at least 12 characters';
+    }
+    if (!/[A-Z]/.test(password)) {
+      return 'Password must include at least one uppercase letter';
+    }
+    if (!/[a-z]/.test(password)) {
+      return 'Password must include at least one lowercase letter';
+    }
+    if (!/[0-9]/.test(password)) {
+      return 'Password must include at least one number';
+    }
+    return null;
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!signupForm.name || !signupForm.email || !signupForm.password) {
@@ -59,8 +76,10 @@ export default function Auth() {
       toast.error('Passwords do not match');
       return;
     }
-    if (signupForm.password.length < 8) {
-      toast.error('Password must be at least 8 characters');
+    
+    const passwordError = validatePassword(signupForm.password);
+    if (passwordError) {
+      toast.error(passwordError);
       return;
     }
     
@@ -179,7 +198,7 @@ export default function Auth() {
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="Password (min 8 characters)"
+                      placeholder="Password (min 12 chars, A-Z, a-z, 0-9)"
                       value={signupForm.password}
                       onChange={(e) => setSignupForm(prev => ({ ...prev, password: e.target.value }))}
                       className="pl-10 pr-10"
