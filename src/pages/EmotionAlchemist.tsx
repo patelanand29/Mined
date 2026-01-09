@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Brain, Send, Sparkles, RefreshCw, Save, Flame, Image } from 'lucide-react';
+import { Brain, Send, Sparkles, RefreshCw, Save, Flame, Image, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -94,15 +94,25 @@ export default function EmotionAlchemist() {
     setIsGeneratingImage(true);
 
     try {
-      // Use Pollinations API for image generation
-      const prompt = encodeURIComponent(`Abstract art representing the emotion: ${input}. Peaceful, therapeutic, calming colors, watercolor style.`);
-      const imageUrl = `https://image.pollinations.ai/prompt/${prompt}?width=512&height=512&nologo=true`;
-      
-      setGeneratedImage(imageUrl);
-      toast.success('Image generated!');
-    } catch (error) {
+      const { data, error } = await supabase.functions.invoke('generate-emotion-art', {
+        body: { emotion: input }
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      if (data.imageUrl) {
+        setGeneratedImage(data.imageUrl);
+        toast.success('Art created!');
+      } else {
+        throw new Error('No image received');
+      }
+    } catch (error: any) {
       console.error('Error generating image:', error);
-      toast.error('Failed to generate image');
+      toast.error(error.message || 'Failed to generate art');
     } finally {
       setIsGeneratingImage(false);
     }
@@ -296,16 +306,35 @@ export default function EmotionAlchemist() {
                     disabled={isGeneratingImage}
                     className="gap-2"
                   >
-                    <Image className="w-4 h-4" />
-                    {isGeneratingImage ? 'Generating...' : 'Generate Art'}
+                    {isGeneratingImage ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Image className="w-4 h-4" />
+                        Generate Art
+                      </>
+                    )}
                   </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {generatedImage ? (
+                {isGeneratingImage ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-4">
+                    <div className="relative">
+                      <div className="w-16 h-16 rounded-full border-4 border-muted border-t-primary animate-spin" />
+                      <Sparkles className="w-6 h-6 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                    </div>
+                    <p className="text-muted-foreground text-sm animate-pulse">
+                      Creating your emotion art...
+                    </p>
+                  </div>
+                ) : generatedImage ? (
                   <motion.img
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     src={generatedImage}
                     alt="Generated emotion art"
                     className="w-full max-w-md mx-auto rounded-lg shadow-lg"
