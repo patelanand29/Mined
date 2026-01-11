@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, Plus, Play, Lock, Unlock, Calendar, MessageSquare, Mic, Video } from 'lucide-react';
+import { Clock, Plus, Play, Pause, Lock, Unlock, Calendar, MessageSquare, Mic, Video, Trash2, Square, RefreshCw, Heart, Bell, BellOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,60 +8,187 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import Layout from '@/components/layout/Layout';
+import MotivationalCapsulePrompt from '@/components/MotivationalCapsulePrompt';
+import { useAuth } from '@/hooks/useAuth';
+import { useMediaRecorder, formatTime } from '@/hooks/useMediaRecorder';
+import { useNotifications } from '@/hooks/useNotifications';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { format, formatDistanceToNow, isPast, parseISO } from 'date-fns';
 
-interface TimeCapsule {
+interface TimeCapsuleData {
   id: string;
-  type: 'text' | 'voice' | 'video';
-  content: string;
-  createdAt: string;
-  unlockDate: string;
-  isUnlocked: boolean;
-  mood?: string;
+  title: string;
+  capsule_type: 'text' | 'voice' | 'video';
+  content: string | null;
+  media_url: string | null;
+  created_at: string;
+  unlock_date: string;
+  is_unlocked: boolean;
+  is_motivational: boolean;
 }
 
 export default function TimeCapsule() {
-  const [capsules, setCapsules] = useState<TimeCapsule[]>([
-    {
-      id: '1',
-      type: 'text',
-      content: 'Hey future me! I hope you\'re doing amazing. Remember how stressed you were about exams? I bet you crushed them! Stay strong and keep believing in yourself.',
-      createdAt: '2025-12-15',
-      unlockDate: '2026-06-15',
-      isUnlocked: false,
-    },
-    {
-      id: '2',
-      type: 'text',
-      content: 'Today was a really good day. I finally opened up to my friends about what I\'ve been going through, and they were so supportive. Remember this feeling when things get tough.',
-      createdAt: '2025-11-20',
-      unlockDate: '2025-12-20',
-      isUnlocked: true,
-      mood: '😊'
-    },
-  ]);
-
+  const { user } = useAuth();
+  const { settings, saveSettings, permissionStatus, requestPermission } = useNotifications();
+  
+  const [capsules, setCapsules] = useState<TimeCapsuleData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newCapsule, setNewCapsule] = useState({ content: '', unlockDate: '', type: 'text' });
+  const [saving, setSaving] = useState(false);
+  const [newCapsule, setNewCapsule] = useState({ content: '', unlockDate: '', type: 'text', title: '' });
+  const [playingMedia, setPlayingMedia] = useState<string | null>(null);
 
-  const handleCreateCapsule = () => {
-    if (!newCapsule.content || !newCapsule.unlockDate) return;
+  // Media recorders
+  const audioRecorder = useMediaRecorder({ type: 'audio', maxDurationSeconds: 300 });
+  const videoRecorder = useMediaRecorder({ type: 'video', maxDurationSeconds: 120 });
 
-    const capsule: TimeCapsule = {
-      id: Date.now().toString(),
-      type: newCapsule.type as 'text' | 'voice' | 'video',
-      content: newCapsule.content,
-      createdAt: new Date().toISOString().split('T')[0],
-      unlockDate: newCapsule.unlockDate,
-      isUnlocked: false,
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
+
+  // Fetch capsules from database
+  useEffect(() => {
+    if (user) {
+      fetchCapsules();
+    }
+  }, [user]);
+
+  // Auto-unlock capsules that have passed their unlock date
+  useEffect(() => {
+    const checkUnlocks = async () => {
+      const now = new Date().toISOString();
+      const capsulesToUnlock = capsules.filter(c => !c.is_unlocked && !c.is_motivational && isPast(parseISO(c.unlock_date)));
+      
+      for (const capsule of capsulesToUnlock) {
+        await supabase
+          .from('time_capsules')
+          .update({ is_unlocked: true })
+          .eq('id', capsule.id);
+      }
+      
+      if (capsulesToUnlock.length > 0) {
+        fetchCapsules();
+        toast.success(`${capsulesToUnlock.length} time capsule(s) unlocked!`);
+      }
     };
+    
+    checkUnlocks();
+  }, [capsules]);
 
-    setCapsules(prev => [capsule, ...prev]);
-    setNewCapsule({ content: '', unlockDate: '', type: 'text' });
-    setDialogOpen(false);
+  const fetchCapsules = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('time_capsules')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setCapsules((data as TimeCapsuleData[]) || []);
+    } catch (error) {
+      console.error('Error fetching capsules:', error);
+      toast.error('Failed to load time capsules');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const unlockedCapsules = capsules.filter(c => c.isUnlocked);
-  const lockedCapsules = capsules.filter(c => !c.isUnlocked);
+  const handleCreateCapsule = async () => {
+    if (!user) {
+      toast.error('Please sign in to create a time capsule');
+      return;
+    }
+
+    const type = newCapsule.type as 'text' | 'voice' | 'video';
+    
+    // Validate based on type
+    if (type === 'text' && !newCapsule.content.trim()) {
+      toast.error('Please write a message');
+      return;
+    }
+    if (type === 'voice' && !audioRecorder.mediaBlob) {
+      toast.error('Please record a voice message');
+      return;
+    }
+    if (type === 'video' && !videoRecorder.mediaBlob) {
+      toast.error('Please record a video message');
+      return;
+    }
+    if (!newCapsule.unlockDate) {
+      toast.error('Please select an unlock date');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      // Generate a temporary ID for the capsule
+      const tempId = crypto.randomUUID();
+
+      // Upload media if needed
+      let mediaUrl: string | null = null;
+      if (type === 'voice' && audioRecorder.mediaBlob) {
+        mediaUrl = await audioRecorder.uploadMedia(user.id, tempId);
+      } else if (type === 'video' && videoRecorder.mediaBlob) {
+        mediaUrl = await videoRecorder.uploadMedia(user.id, tempId);
+      }
+
+      // Create the capsule
+      const { error } = await supabase
+        .from('time_capsules')
+        .insert({
+          id: tempId,
+          user_id: user.id,
+          title: newCapsule.title || `Time Capsule - ${format(new Date(), 'MMM d, yyyy')}`,
+          capsule_type: type,
+          content: type === 'text' ? newCapsule.content : null,
+          media_url: mediaUrl,
+          unlock_date: new Date(newCapsule.unlockDate).toISOString(),
+          is_unlocked: false,
+          is_motivational: false,
+        });
+
+      if (error) throw error;
+
+      toast.success('Time capsule sealed! 🔒');
+      setNewCapsule({ content: '', unlockDate: '', type: 'text', title: '' });
+      audioRecorder.resetRecording();
+      videoRecorder.resetRecording();
+      setDialogOpen(false);
+      fetchCapsules();
+    } catch (error) {
+      console.error('Error creating capsule:', error);
+      toast.error('Failed to create time capsule');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteCapsule = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('time_capsules')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      setCapsules(prev => prev.filter(c => c.id !== id));
+      toast.success('Capsule deleted');
+    } catch (error) {
+      console.error('Error deleting capsule:', error);
+      toast.error('Failed to delete capsule');
+    }
+  };
+
+  const unlockedCapsules = capsules.filter(c => c.is_unlocked);
+  const lockedCapsules = capsules.filter(c => !c.is_unlocked);
+  const motivationalUnlocked = unlockedCapsules.find(c => c.is_motivational);
+
+  const getTimeUntilUnlock = (unlockDate: string) => {
+    const unlock = parseISO(unlockDate);
+    if (isPast(unlock)) return 'Ready to unlock!';
+    return `Unlocks ${formatDistanceToNow(unlock, { addSuffix: true })}`;
+  };
 
   return (
     <Layout>
@@ -71,17 +198,80 @@ export default function TimeCapsule() {
         className="max-w-4xl mx-auto"
       >
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-blue-500/20 mb-4">
-            <Clock className="w-8 h-8 text-indigo-600" />
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-blue-500/20 mb-2">
+              <Clock className="w-6 h-6 text-indigo-600" />
+            </div>
+            <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
+              Time Capsule
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Record messages to your future self
+            </p>
           </div>
-          <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-2">
-            Time Capsule
-          </h1>
-          <p className="text-muted-foreground max-w-lg mx-auto">
-            Record messages to your future self. Capture your thoughts, hopes, and reflections to unlock on special dates.
-          </p>
+          
+          {/* Notification toggle */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (permissionStatus !== 'granted') {
+                requestPermission();
+              } else {
+                saveSettings({ capsule_unlock_notify: !settings.capsule_unlock_notify });
+              }
+            }}
+            className="gap-2"
+          >
+            {settings.capsule_unlock_notify && permissionStatus === 'granted' ? (
+              <>
+                <Bell className="w-4 h-4" />
+                Notifications On
+              </>
+            ) : (
+              <>
+                <BellOff className="w-4 h-4" />
+                Enable Notifications
+              </>
+            )}
+          </Button>
         </div>
+
+        {/* Motivational Capsule Prompt */}
+        <div className="mb-6">
+          <MotivationalCapsulePrompt onComplete={fetchCapsules} />
+        </div>
+
+        {/* Motivational Capsule Banner (if unlocked) */}
+        {motivationalUnlocked && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-6"
+          >
+            <Card className="border-2 border-pink-500 bg-gradient-to-br from-pink-50 to-purple-50 dark:from-pink-950/30 dark:to-purple-950/30">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-full bg-pink-500/20 flex items-center justify-center flex-shrink-0">
+                    <Heart className="w-6 h-6 text-pink-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-pink-600 mb-2">
+                      💝 A Message From Your Past Self
+                    </h3>
+                    <p className="text-foreground whitespace-pre-wrap">
+                      {motivationalUnlocked.content}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-3">
+                      Written on {format(parseISO(motivationalUnlocked.created_at), 'MMMM d, yyyy')}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Create New Capsule */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -93,12 +283,22 @@ export default function TimeCapsule() {
               </CardContent>
             </Card>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="font-display">Create Time Capsule</DialogTitle>
             </DialogHeader>
             
             <div className="space-y-6 py-4">
+              {/* Title */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Title (optional)</label>
+                <Input
+                  placeholder="Give your capsule a name..."
+                  value={newCapsule.title}
+                  onChange={(e) => setNewCapsule(prev => ({ ...prev, title: e.target.value }))}
+                />
+              </div>
+
               {/* Type Selection */}
               <Tabs value={newCapsule.type} onValueChange={(v) => setNewCapsule(prev => ({ ...prev, type: v }))}>
                 <TabsList className="grid grid-cols-3">
@@ -117,6 +317,7 @@ export default function TimeCapsule() {
                 </TabsList>
               </Tabs>
 
+              {/* Text Content */}
               {newCapsule.type === 'text' && (
                 <Textarea
                   placeholder="Write a message to your future self..."
@@ -127,55 +328,144 @@ export default function TimeCapsule() {
                 />
               )}
 
+              {/* Voice Recording */}
               {newCapsule.type === 'voice' && (
-                <div className="p-8 border-2 border-dashed rounded-lg text-center">
-                  <Mic className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                  <Button variant="outline">Start Recording</Button>
-                  <p className="text-xs text-muted-foreground mt-2">Max 5 minutes</p>
+                <div className="p-6 border-2 border-dashed rounded-lg text-center space-y-4">
+                  {audioRecorder.mediaUrl ? (
+                    <>
+                      <audio src={audioRecorder.mediaUrl} controls className="w-full" />
+                      <Button variant="outline" onClick={audioRecorder.resetRecording}>
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Record Again
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className={`w-12 h-12 mx-auto ${audioRecorder.isRecording ? 'text-red-500 animate-pulse' : 'text-muted-foreground'}`} />
+                      
+                      {audioRecorder.isRecording && (
+                        <p className="text-lg font-mono text-red-500">
+                          {formatTime(audioRecorder.recordingTime)}
+                        </p>
+                      )}
+                      
+                      <div className="flex justify-center gap-2">
+                        {!audioRecorder.isRecording ? (
+                          <Button onClick={audioRecorder.startRecording}>
+                            <Mic className="w-4 h-4 mr-2" />
+                            Start Recording
+                          </Button>
+                        ) : (
+                          <>
+                            {audioRecorder.isPaused ? (
+                              <Button variant="outline" onClick={audioRecorder.resumeRecording}>
+                                <Play className="w-4 h-4 mr-2" />
+                                Resume
+                              </Button>
+                            ) : (
+                              <Button variant="outline" onClick={audioRecorder.pauseRecording}>
+                                <Pause className="w-4 h-4 mr-2" />
+                                Pause
+                              </Button>
+                            )}
+                            <Button variant="destructive" onClick={audioRecorder.stopRecording}>
+                              <Square className="w-4 h-4 mr-2" />
+                              Stop
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                      
+                      <p className="text-xs text-muted-foreground">Max 5 minutes</p>
+                    </>
+                  )}
                 </div>
               )}
 
+              {/* Video Recording */}
               {newCapsule.type === 'video' && (
-                <div className="p-8 border-2 border-dashed rounded-lg text-center">
-                  <Video className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                  <Button variant="outline">Record Video</Button>
-                  <p className="text-xs text-muted-foreground mt-2">Max 2 minutes</p>
+                <div className="p-6 border-2 border-dashed rounded-lg text-center space-y-4">
+                  {videoRecorder.mediaUrl ? (
+                    <>
+                      <video src={videoRecorder.mediaUrl} controls className="w-full rounded-lg" />
+                      <Button variant="outline" onClick={videoRecorder.resetRecording}>
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Record Again
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Video className={`w-12 h-12 mx-auto ${videoRecorder.isRecording ? 'text-red-500 animate-pulse' : 'text-muted-foreground'}`} />
+                      
+                      {videoRecorder.isRecording && (
+                        <p className="text-lg font-mono text-red-500">
+                          {formatTime(videoRecorder.recordingTime)}
+                        </p>
+                      )}
+                      
+                      <div className="flex justify-center gap-2">
+                        {!videoRecorder.isRecording ? (
+                          <Button onClick={videoRecorder.startRecording}>
+                            <Video className="w-4 h-4 mr-2" />
+                            Start Recording
+                          </Button>
+                        ) : (
+                          <>
+                            <Button variant="destructive" onClick={videoRecorder.stopRecording}>
+                              <Square className="w-4 h-4 mr-2" />
+                              Stop
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                      
+                      <p className="text-xs text-muted-foreground">Max 2 minutes</p>
+                    </>
+                  )}
                 </div>
               )}
 
+              {/* Unlock Date */}
               <div className="space-y-2">
                 <label className="text-sm font-medium flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
-                  Unlock Date
+                  Unlock Date & Time
                 </label>
                 <Input
-                  type="date"
+                  type="datetime-local"
                   value={newCapsule.unlockDate}
                   onChange={(e) => setNewCapsule(prev => ({ ...prev, unlockDate: e.target.value }))}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={new Date().toISOString().slice(0, 16)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  This capsule will be locked until this date
+                  This capsule will be locked until this date and time
                 </p>
               </div>
 
               <Button 
                 onClick={handleCreateCapsule} 
                 className="w-full"
-                disabled={!newCapsule.content || !newCapsule.unlockDate}
+                disabled={saving}
               >
-                Seal Time Capsule
+                {saving ? 'Sealing...' : 'Seal Time Capsule'}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="text-center py-8">
+            <RefreshCw className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
+          </div>
+        )}
+
         {/* Locked Capsules */}
-        {lockedCapsules.length > 0 && (
+        {!loading && lockedCapsules.length > 0 && (
           <div className="mb-8">
             <h2 className="font-display text-xl font-semibold mb-4 flex items-center gap-2">
               <Lock className="w-5 h-5 text-muted-foreground" />
-              Locked Capsules
+              Locked Capsules ({lockedCapsules.length})
             </h2>
             <div className="grid gap-4">
               {lockedCapsules.map((capsule, i) => (
@@ -189,24 +479,45 @@ export default function TimeCapsule() {
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                            <Lock className="w-5 h-5 text-primary" />
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            capsule.is_motivational 
+                              ? 'bg-pink-500/20' 
+                              : 'bg-primary/20'
+                          }`}>
+                            {capsule.is_motivational ? (
+                              <Heart className="w-5 h-5 text-pink-500" />
+                            ) : capsule.capsule_type === 'voice' ? (
+                              <Mic className="w-5 h-5 text-primary" />
+                            ) : capsule.capsule_type === 'video' ? (
+                              <Video className="w-5 h-5 text-primary" />
+                            ) : (
+                              <Lock className="w-5 h-5 text-primary" />
+                            )}
                           </div>
                           <div>
-                            <p className="font-medium text-foreground">Time Capsule</p>
+                            <p className="font-medium text-foreground">
+                              {capsule.title}
+                            </p>
                             <p className="text-sm text-muted-foreground">
-                              Created {capsule.createdAt}
+                              Created {format(parseISO(capsule.created_at), 'MMM d, yyyy \'at\' h:mm a')}
                             </p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-medium text-primary">Unlocks</p>
-                          <p className="text-sm text-muted-foreground">{capsule.unlockDate}</p>
+                          <p className="text-sm font-medium text-primary">
+                            {capsule.is_motivational ? 'Emergency Capsule' : getTimeUntilUnlock(capsule.unlock_date)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {capsule.is_motivational 
+                              ? 'Unlocks when you need it'
+                              : format(parseISO(capsule.unlock_date), 'MMM d, yyyy h:mm a')
+                            }
+                          </p>
                         </div>
                       </div>
                       <div className="mt-4 p-4 rounded-lg bg-background/50 text-center">
                         <p className="text-muted-foreground italic">
-                          🔒 This message is sealed until {capsule.unlockDate}
+                          🔒 This message is sealed
                         </p>
                       </div>
                     </CardContent>
@@ -218,14 +529,14 @@ export default function TimeCapsule() {
         )}
 
         {/* Unlocked Capsules */}
-        {unlockedCapsules.length > 0 && (
+        {!loading && unlockedCapsules.filter(c => !c.is_motivational).length > 0 && (
           <div>
             <h2 className="font-display text-xl font-semibold mb-4 flex items-center gap-2">
               <Unlock className="w-5 h-5 text-green-600" />
-              Unlocked Capsules
+              Unlocked Capsules ({unlockedCapsules.filter(c => !c.is_motivational).length})
             </h2>
             <div className="grid gap-4">
-              {unlockedCapsules.map((capsule, i) => (
+              {unlockedCapsules.filter(c => !c.is_motivational).map((capsule, i) => (
                 <motion.div
                   key={capsule.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -237,22 +548,45 @@ export default function TimeCapsule() {
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-                            {capsule.mood || '✨'}
+                            {capsule.capsule_type === 'voice' ? (
+                              <Mic className="w-5 h-5 text-green-600" />
+                            ) : capsule.capsule_type === 'video' ? (
+                              <Video className="w-5 h-5 text-green-600" />
+                            ) : (
+                              <MessageSquare className="w-5 h-5 text-green-600" />
+                            )}
                           </div>
                           <div>
-                            <p className="font-medium text-foreground">Past You Says...</p>
+                            <p className="font-medium text-foreground">{capsule.title}</p>
                             <p className="text-sm text-muted-foreground">
-                              Written on {capsule.createdAt}
+                              Written {format(parseISO(capsule.created_at), 'MMM d, yyyy \'at\' h:mm a')}
                             </p>
                           </div>
                         </div>
-                        <Button variant="ghost" size="icon">
-                          <Play className="w-4 h-4" />
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleDeleteCapsule(capsule.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
-                      <p className="text-muted-foreground leading-relaxed">
-                        {capsule.content}
-                      </p>
+                      
+                      {/* Content based on type */}
+                      {capsule.capsule_type === 'text' && capsule.content && (
+                        <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                          {capsule.content}
+                        </p>
+                      )}
+                      
+                      {capsule.capsule_type === 'voice' && capsule.media_url && (
+                        <audio src={capsule.media_url} controls className="w-full" />
+                      )}
+                      
+                      {capsule.capsule_type === 'video' && capsule.media_url && (
+                        <video src={capsule.media_url} controls className="w-full rounded-lg" />
+                      )}
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -262,7 +596,7 @@ export default function TimeCapsule() {
         )}
 
         {/* Empty State */}
-        {capsules.length === 0 && (
+        {!loading && capsules.length === 0 && (
           <Card className="mined-card">
             <CardContent className="py-12 text-center">
               <Clock className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
@@ -281,7 +615,8 @@ export default function TimeCapsule() {
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li>• Messages are securely stored and linked to your mood calendar</li>
             <li>• Unlock dates can't be changed once sealed</li>
-            <li>• During low-mood days, we may suggest revisiting uplifting past messages</li>
+            <li>• Voice messages up to 5 minutes, video up to 2 minutes</li>
+            <li>• During difficult times, your self-care capsule may automatically unlock</li>
             <li>• Your capsules are completely private</li>
           </ul>
         </div>

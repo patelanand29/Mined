@@ -280,6 +280,36 @@ export type Database = {
         }
         Relationships: []
       }
+      mental_health_alerts: {
+        Row: {
+          analysis_summary: string | null
+          capsule_unlocked: boolean | null
+          created_at: string | null
+          data_sources: Json | null
+          id: string
+          risk_level: string
+          user_id: string
+        }
+        Insert: {
+          analysis_summary?: string | null
+          capsule_unlocked?: boolean | null
+          created_at?: string | null
+          data_sources?: Json | null
+          id?: string
+          risk_level: string
+          user_id: string
+        }
+        Update: {
+          analysis_summary?: string | null
+          capsule_unlocked?: boolean | null
+          created_at?: string | null
+          data_sources?: Json | null
+          id?: string
+          risk_level?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mood_entries: {
         Row: {
           ai_emotion: string | null
@@ -315,6 +345,39 @@ export type Database = {
           mood_emoji?: string
           mood_label?: string
           note?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_settings: {
+        Row: {
+          capsule_unlock_notify: boolean | null
+          created_at: string | null
+          daily_mood_reminder: boolean | null
+          id: string
+          mood_reminder_time: string | null
+          push_token: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          capsule_unlock_notify?: boolean | null
+          created_at?: string | null
+          daily_mood_reminder?: boolean | null
+          id?: string
+          mood_reminder_time?: string | null
+          push_token?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          capsule_unlock_notify?: boolean | null
+          created_at?: string | null
+          daily_mood_reminder?: boolean | null
+          id?: string
+          mood_reminder_time?: string | null
+          push_token?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -429,6 +492,7 @@ export type Database = {
           content: string | null
           created_at: string
           id: string
+          is_motivational: boolean | null
           is_unlocked: boolean
           media_url: string | null
           title: string
@@ -440,6 +504,7 @@ export type Database = {
           content?: string | null
           created_at?: string
           id?: string
+          is_motivational?: boolean | null
           is_unlocked?: boolean
           media_url?: string | null
           title: string
@@ -451,6 +516,7 @@ export type Database = {
           content?: string | null
           created_at?: string
           id?: string
+          is_motivational?: boolean | null
           is_unlocked?: boolean
           media_url?: string | null
           title?: string

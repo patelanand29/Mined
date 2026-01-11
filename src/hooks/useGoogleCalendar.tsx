@@ -25,17 +25,23 @@ export function useGoogleCalendar() {
     }
 
     try {
-      // Check if user has Google identity linked with calendar scopes
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
-      const googleIdentity = currentUser?.identities?.find(
-        (identity) => identity.provider === 'google'
-      );
-      
-      // Check if we have a provider token (indicates active OAuth session with scopes)
-      const hasProviderToken = !!session?.provider_token;
-      
-      setIsConnected(!!googleIdentity && hasProviderToken);
+      // Check connection status via edge function (more reliable than client-side check)
+      const { data, error } = await supabase.functions.invoke('google-calendar', {
+        body: { action: 'check_connection' }
+      });
+
+      if (error) {
+        console.error('Error checking connection:', error);
+        setIsConnected(false);
+      } else {
+        // Also check if we have a provider token in the current session
+        const hasProviderToken = !!session?.provider_token;
+        
+        // User is connected if:
+        // 1. They have a Google identity AND
+        // 2. They have a valid provider token in this session
+        setIsConnected(data?.connected && hasProviderToken);
+      }
     } catch (error) {
       console.error('Error checking Google Calendar connection:', error);
       setIsConnected(false);
