@@ -1,6 +1,9 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
+import MentalHealthBanner from '@/components/MentalHealthBanner';
+import { useAuth } from '@/hooks/useAuth';
+import { useMentalHealthMonitor } from '@/hooks/useMentalHealthMonitor';
 
 interface LayoutProps {
   children: ReactNode;
@@ -8,6 +11,28 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user } = useAuth();
+  const { runAnalysis, latestAlert } = useMentalHealthMonitor();
+
+  // Run mental health analysis periodically (once per day)
+  useEffect(() => {
+    if (!user) return;
+
+    const lastAnalysisKey = `mined_last_analysis_${user.id}`;
+    const lastAnalysis = localStorage.getItem(lastAnalysisKey);
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+
+    if (!lastAnalysis || parseInt(lastAnalysis) < oneDayAgo) {
+      // Run analysis after a short delay to not block initial render
+      const timer = setTimeout(() => {
+        runAnalysis().then(() => {
+          localStorage.setItem(lastAnalysisKey, Date.now().toString());
+        });
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [user, runAnalysis]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -15,6 +40,7 @@ export default function Layout({ children }: LayoutProps) {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
       <main className="container mx-auto px-4 pt-20 pb-12">
+        <MentalHealthBanner />
         {children}
       </main>
 
