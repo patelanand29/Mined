@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { User, Mail, Edit2, Save, TrendingUp, Calendar, BookOpen, LogOut, Wind, Clock, RotateCcw, Heart } from 'lucide-react';
+import { User, Mail, Edit2, Save, TrendingUp, Calendar, BookOpen, LogOut, Wind, Clock, RotateCcw, Heart, Lock, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,7 +33,7 @@ interface MeditationStats {
 }
 
 export default function Profile() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, updatePassword } = useAuth();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -46,6 +47,13 @@ export default function Profile() {
     totalCycles: 0, 
     favoriteTechnique: 'None yet' 
   });
+  
+  // Password change state
+  const [securityOpen, setSecurityOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -176,6 +184,52 @@ export default function Profile() {
     toast.success('Logged out successfully');
   };
 
+  const validatePassword = (password: string): string | null => {
+    if (password.length < 12) {
+      return 'Password must be at least 12 characters';
+    }
+    if (!/[A-Z]/.test(password)) {
+      return 'Password must include at least one uppercase letter';
+    }
+    if (!/[a-z]/.test(password)) {
+      return 'Password must include at least one lowercase letter';
+    }
+    if (!/[0-9]/.test(password)) {
+      return 'Password must include at least one number';
+    }
+    return null;
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword) {
+      toast.error('Please enter a new password');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      toast.error(passwordError);
+      return;
+    }
+    
+    setChangingPassword(true);
+    const { error } = await updatePassword(newPassword);
+    
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success('Password updated successfully!');
+      setNewPassword('');
+      setConfirmPassword('');
+      setSecurityOpen(false);
+    }
+    setChangingPassword(false);
+  };
+
   const getInitials = () => {
     if (profile.full_name) {
       return profile.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -272,6 +326,66 @@ export default function Profile() {
               )}
             </div>
           </CardContent>
+        </Card>
+
+        {/* Security Section */}
+        <Card className="mined-card mb-8">
+          <Collapsible open={securityOpen} onOpenChange={setSecurityOpen}>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <CardTitle className="font-display flex items-center gap-2">
+                  <KeyRound className="w-5 h-5 text-primary" />
+                  Security
+                </CardTitle>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">New Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="New password (min 12 chars)"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="pl-10 pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Confirm Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Confirm new password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                
+                <p className="text-xs text-muted-foreground">
+                  Password must be at least 12 characters with uppercase, lowercase, and numbers
+                </p>
+                
+                <Button onClick={handleChangePassword} disabled={changingPassword} className="gap-2">
+                  {changingPassword ? 'Updating...' : 'Update Password'}
+                </Button>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
 
         {/* Mood Stats */}
