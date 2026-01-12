@@ -250,14 +250,14 @@ export default function TimeCapsule() {
             animate={{ opacity: 1, scale: 1 }}
             className="mb-6"
           >
-            <Card className="border-2 border-pink-500 bg-gradient-to-br from-pink-50 to-purple-50 dark:from-pink-950/30 dark:to-purple-950/30">
+            <Card className="border-2 border-primary bg-primary/10">
               <CardContent className="p-6">
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-full bg-pink-500/20 flex items-center justify-center flex-shrink-0">
-                    <Heart className="w-6 h-6 text-pink-500" />
+                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <Heart className="w-6 h-6 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-pink-600 mb-2">
+                    <h3 className="font-semibold text-primary mb-2">
                       💝 A Message From Your Past Self
                     </h3>
                     <p className="text-foreground whitespace-pre-wrap">

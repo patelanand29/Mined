@@ -25,6 +25,9 @@ export default function MentalHealthBanner() {
   if (!shouldShow) return null;
 
   const riskInfo = getRiskLevelInfo(latestAlert.risk_level);
+  
+  // Theme-aware styling based on risk level
+  const isHighRisk = latestAlert.risk_level === 'critical';
 
   return (
     <AnimatePresence>
@@ -34,14 +37,14 @@ export default function MentalHealthBanner() {
         exit={{ opacity: 0, y: -20 }}
         className="mb-6"
       >
-        <Card className={`p-4 border-l-4 ${riskInfo.borderColor} ${riskInfo.bgColor}`}>
+        <Card className={`p-4 border-l-4 ${isHighRisk ? 'border-destructive bg-destructive/10' : 'border-primary bg-primary/10'}`}>
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
-              <Heart className={`w-6 h-6 ${riskInfo.color}`} />
+              <Heart className={`w-6 h-6 ${isHighRisk ? 'text-destructive' : 'text-primary'}`} />
             </div>
             
             <div className="flex-1">
-              <h3 className={`font-semibold ${riskInfo.color}`}>
+              <h3 className={`font-semibold ${isHighRisk ? 'text-destructive' : 'text-primary'}`}>
                 {latestAlert.risk_level === 'critical' 
                   ? "We're here for you" 
                   : "A message from your past self awaits"}
@@ -76,9 +79,9 @@ export default function MentalHealthBanner() {
                 {latestAlert.risk_level === 'critical' && (
                   <Button 
                     size="sm" 
-                    variant="outline"
+                    variant="destructive"
                     onClick={() => window.open('https://www.nimhans.ac.in/', '_blank')}
-                    className="gap-2 text-red-600 border-red-300 hover:bg-red-50"
+                    className="gap-2"
                   >
                     <ExternalLink className="w-4 h-4" />
                     Crisis Resources
