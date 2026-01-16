@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { Clock, Plus, Play, Pause, Lock, Unlock, Calendar, MessageSquare, Mic, Video, Trash2, Square, RefreshCw, Heart, Bell, BellOff } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Clock, Plus, Play, Pause, Lock, Unlock, Calendar, MessageSquare, Mic, Video, Trash2, Square, RefreshCw, Heart, Bell, BellOff, Image, Smile, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,12 +38,24 @@ export default function TimeCapsule() {
   const [saving, setSaving] = useState(false);
   const [newCapsule, setNewCapsule] = useState({ content: '', unlockDate: '', type: 'text', title: '' });
   const [playingMedia, setPlayingMedia] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [showSmilePopup, setShowSmilePopup] = useState(false);
 
   // Media recorders
   const audioRecorder = useMediaRecorder({ type: 'audio', maxDurationSeconds: 300 });
   const videoRecorder = useMediaRecorder({ type: 'video', maxDurationSeconds: 120 });
 
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  // Connect video preview to stream when recording
+  useEffect(() => {
+    if (videoRecorder.isRecording && videoRecorder.stream && videoPreviewRef.current) {
+      videoPreviewRef.current.srcObject = videoRecorder.stream;
+      videoPreviewRef.current.play().catch(console.error);
+    }
+  }, [videoRecorder.isRecording, videoRecorder.stream]);
 
   // Fetch capsules from database
   useEffect(() => {
@@ -92,6 +104,56 @@ export default function TimeCapsule() {
     }
   };
 
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Photo must be less than 5MB');
+        return;
+      }
+      setPhotoFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const removePhoto = () => {
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    if (photoInputRef.current) {
+      photoInputRef.current.value = '';
+    }
+  };
+
+  const uploadPhoto = async (userId: string, capsuleId: string): Promise<string | null> => {
+    if (!photoFile) return null;
+
+    try {
+      const fileExt = photoFile.name.split('.').pop();
+      const fileName = `${userId}/${capsuleId}-photo.${fileExt}`;
+
+      const { error } = await supabase.storage
+        .from('capsule-media')
+        .upload(fileName, photoFile, {
+          contentType: photoFile.type,
+          upsert: true,
+        });
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from('capsule-media')
+        .getPublicUrl(fileName);
+
+      return urlData?.publicUrl || null;
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      return null;
+    }
+  };
+
   const handleCreateCapsule = async () => {
     if (!user) {
       toast.error('Please sign in to create a time capsule');
@@ -101,8 +163,8 @@ export default function TimeCapsule() {
     const type = newCapsule.type as 'text' | 'voice' | 'video';
     
     // Validate based on type
-    if (type === 'text' && !newCapsule.content.trim()) {
-      toast.error('Please write a message');
+    if (type === 'text' && !newCapsule.content.trim() && !photoFile) {
+      toast.error('Please write a message or add a photo');
       return;
     }
     if (type === 'voice' && !audioRecorder.mediaBlob) {
@@ -130,6 +192,8 @@ export default function TimeCapsule() {
         mediaUrl = await audioRecorder.uploadMedia(user.id, tempId);
       } else if (type === 'video' && videoRecorder.mediaBlob) {
         mediaUrl = await videoRecorder.uploadMedia(user.id, tempId);
+      } else if (type === 'text' && photoFile) {
+        mediaUrl = await uploadPhoto(user.id, tempId);
       }
 
       // Create the capsule
@@ -153,6 +217,7 @@ export default function TimeCapsule() {
       setNewCapsule({ content: '', unlockDate: '', type: 'text', title: '' });
       audioRecorder.resetRecording();
       videoRecorder.resetRecording();
+      removePhoto();
       setDialogOpen(false);
       fetchCapsules();
     } catch (error) {
@@ -197,6 +262,42 @@ export default function TimeCapsule() {
         animate={{ opacity: 1, y: 0 }}
         className="max-w-4xl mx-auto"
       >
+        {/* SMILE Popup */}
+        <AnimatePresence>
+          {showSmilePopup && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+              onClick={() => setShowSmilePopup(false)}
+            >
+              <motion.div
+                initial={{ y: 50 }}
+                animate={{ y: 0 }}
+                exit={{ y: 50 }}
+                className="bg-background p-8 rounded-3xl shadow-2xl text-center max-w-sm mx-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.5 }}
+                  className="text-8xl mb-4"
+                >
+                  😊
+                </motion.div>
+                <h2 className="font-display text-3xl font-bold text-foreground mb-2">SMILE!</h2>
+                <p className="text-muted-foreground mb-4">
+                  You're doing great! Take a moment to smile and appreciate yourself.
+                </p>
+                <Button onClick={() => setShowSmilePopup(false)} className="w-full">
+                  Thanks! 💖
+                </Button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -211,31 +312,44 @@ export default function TimeCapsule() {
             </p>
           </div>
           
-          {/* Notification toggle */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (permissionStatus !== 'granted') {
-                requestPermission();
-              } else {
-                saveSettings({ capsule_unlock_notify: !settings.capsule_unlock_notify });
-              }
-            }}
-            className="gap-2"
-          >
-            {settings.capsule_unlock_notify && permissionStatus === 'granted' ? (
-              <>
-                <Bell className="w-4 h-4" />
-                Notifications On
-              </>
-            ) : (
-              <>
-                <BellOff className="w-4 h-4" />
-                Enable Notifications
-              </>
-            )}
-          </Button>
+          <div className="flex gap-2">
+            {/* Smile Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSmilePopup(true)}
+              className="gap-2"
+            >
+              <Smile className="w-4 h-4" />
+              SMILE!
+            </Button>
+            
+            {/* Notification toggle */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (permissionStatus !== 'granted') {
+                  requestPermission();
+                } else {
+                  saveSettings({ capsule_unlock_notify: !settings.capsule_unlock_notify });
+                }
+              }}
+              className="gap-2"
+            >
+              {settings.capsule_unlock_notify && permissionStatus === 'granted' ? (
+                <>
+                  <Bell className="w-4 h-4" />
+                  Notifications On
+                </>
+              ) : (
+                <>
+                  <BellOff className="w-4 h-4" />
+                  Enable Notifications
+                </>
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* Motivational Capsule Prompt */}
@@ -319,13 +433,53 @@ export default function TimeCapsule() {
 
               {/* Text Content */}
               {newCapsule.type === 'text' && (
-                <Textarea
-                  placeholder="Write a message to your future self..."
-                  value={newCapsule.content}
-                  onChange={(e) => setNewCapsule(prev => ({ ...prev, content: e.target.value }))}
-                  rows={6}
-                  className="resize-none"
-                />
+                <div className="space-y-4">
+                  <Textarea
+                    placeholder="Write a message to your future self..."
+                    value={newCapsule.content}
+                    onChange={(e) => setNewCapsule(prev => ({ ...prev, content: e.target.value }))}
+                    rows={6}
+                    className="resize-none"
+                  />
+                  
+                  {/* Photo Upload */}
+                  <div className="space-y-2">
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoSelect}
+                      className="hidden"
+                    />
+                    
+                    {photoPreview ? (
+                      <div className="relative">
+                        <img 
+                          src={photoPreview} 
+                          alt="Preview" 
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2"
+                          onClick={removePhoto}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        className="w-full gap-2"
+                        onClick={() => photoInputRef.current?.click()}
+                      >
+                        <Image className="w-4 h-4" />
+                        Add a Photo
+                      </Button>
+                    )}
+                  </div>
+                </div>
               )}
 
               {/* Voice Recording */}
@@ -341,10 +495,10 @@ export default function TimeCapsule() {
                     </>
                   ) : (
                     <>
-                      <Mic className={`w-12 h-12 mx-auto ${audioRecorder.isRecording ? 'text-red-500 animate-pulse' : 'text-muted-foreground'}`} />
+                      <Mic className={`w-12 h-12 mx-auto ${audioRecorder.isRecording ? 'text-destructive animate-pulse' : 'text-muted-foreground'}`} />
                       
                       {audioRecorder.isRecording && (
-                        <p className="text-lg font-mono text-red-500">
+                        <p className="text-lg font-mono text-destructive">
                           {formatTime(audioRecorder.recordingTime)}
                         </p>
                       )}
@@ -387,37 +541,47 @@ export default function TimeCapsule() {
                 <div className="p-6 border-2 border-dashed rounded-lg text-center space-y-4">
                   {videoRecorder.mediaUrl ? (
                     <>
-                      <video src={videoRecorder.mediaUrl} controls className="w-full rounded-lg" />
+                      <video 
+                        src={videoRecorder.mediaUrl} 
+                        controls 
+                        className="w-full rounded-lg"
+                        playsInline
+                      />
                       <Button variant="outline" onClick={videoRecorder.resetRecording}>
                         <RefreshCw className="w-4 h-4 mr-2" />
                         Record Again
                       </Button>
                     </>
+                  ) : videoRecorder.isRecording ? (
+                    <>
+                      {/* Live video preview */}
+                      <video
+                        ref={videoPreviewRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full rounded-lg bg-black"
+                      />
+                      
+                      <p className="text-lg font-mono text-destructive">
+                        {formatTime(videoRecorder.recordingTime)}
+                      </p>
+                      
+                      <Button variant="destructive" onClick={videoRecorder.stopRecording}>
+                        <Square className="w-4 h-4 mr-2" />
+                        Stop Recording
+                      </Button>
+                      
+                      <p className="text-xs text-muted-foreground">Max 2 minutes</p>
+                    </>
                   ) : (
                     <>
-                      <Video className={`w-12 h-12 mx-auto ${videoRecorder.isRecording ? 'text-red-500 animate-pulse' : 'text-muted-foreground'}`} />
+                      <Video className="w-12 h-12 mx-auto text-muted-foreground" />
                       
-                      {videoRecorder.isRecording && (
-                        <p className="text-lg font-mono text-red-500">
-                          {formatTime(videoRecorder.recordingTime)}
-                        </p>
-                      )}
-                      
-                      <div className="flex justify-center gap-2">
-                        {!videoRecorder.isRecording ? (
-                          <Button onClick={videoRecorder.startRecording}>
-                            <Video className="w-4 h-4 mr-2" />
-                            Start Recording
-                          </Button>
-                        ) : (
-                          <>
-                            <Button variant="destructive" onClick={videoRecorder.stopRecording}>
-                              <Square className="w-4 h-4 mr-2" />
-                              Stop
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                      <Button onClick={videoRecorder.startRecording}>
+                        <Video className="w-4 h-4 mr-2" />
+                        Start Recording
+                      </Button>
                       
                       <p className="text-xs text-muted-foreground">Max 2 minutes</p>
                     </>
@@ -481,11 +645,11 @@ export default function TimeCapsule() {
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                             capsule.is_motivational 
-                              ? 'bg-pink-500/20' 
+                              ? 'bg-primary/20' 
                               : 'bg-primary/20'
                           }`}>
                             {capsule.is_motivational ? (
-                              <Heart className="w-5 h-5 text-pink-500" />
+                              <Heart className="w-5 h-5 text-primary" />
                             ) : capsule.capsule_type === 'voice' ? (
                               <Mic className="w-5 h-5 text-primary" />
                             ) : capsule.capsule_type === 'video' ? (
@@ -574,18 +738,40 @@ export default function TimeCapsule() {
                       </div>
                       
                       {/* Content based on type */}
-                      {capsule.capsule_type === 'text' && capsule.content && (
-                        <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                          {capsule.content}
-                        </p>
+                      {capsule.capsule_type === 'text' && (
+                        <div className="space-y-3">
+                          {capsule.content && (
+                            <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                              {capsule.content}
+                            </p>
+                          )}
+                          {capsule.media_url && (
+                            <img 
+                              src={capsule.media_url} 
+                              alt="Capsule photo" 
+                              className="w-full rounded-lg"
+                            />
+                          )}
+                        </div>
                       )}
                       
                       {capsule.capsule_type === 'voice' && capsule.media_url && (
-                        <audio src={capsule.media_url} controls className="w-full" />
+                        <audio 
+                          src={capsule.media_url} 
+                          controls 
+                          className="w-full"
+                          preload="metadata"
+                        />
                       )}
                       
                       {capsule.capsule_type === 'video' && capsule.media_url && (
-                        <video src={capsule.media_url} controls className="w-full rounded-lg" />
+                        <video 
+                          src={capsule.media_url} 
+                          controls 
+                          className="w-full rounded-lg"
+                          preload="metadata"
+                          playsInline
+                        />
                       )}
                     </CardContent>
                   </Card>
@@ -616,6 +802,7 @@ export default function TimeCapsule() {
             <li>• Messages are securely stored and linked to your mood calendar</li>
             <li>• Unlock dates can't be changed once sealed</li>
             <li>• Voice messages up to 5 minutes, video up to 2 minutes</li>
+            <li>• You can add photos to text capsules for memories</li>
             <li>• During difficult times, your self-care capsule may automatically unlock</li>
             <li>• Your capsules are completely private</li>
           </ul>

@@ -21,7 +21,19 @@ interface JournalEntry {
   created_at: string;
 }
 
-const MOOD_OPTIONS = ['😄 Happy', '😊 Good', '😐 Neutral', '😔 Sad', '😰 Anxious'];
+const MOOD_OPTIONS = [
+  '😄 Happy', 
+  '😊 Good', 
+  '😐 Neutral', 
+  '😔 Sad', 
+  '😰 Anxious',
+  '😌 Calm',
+  '😴 Tired',
+  '🦥 Lazy',
+  '😤 Frustrated',
+  '🥰 Loved',
+  '🤔 Thoughtful'
+];
 
 export default function Journal() {
   const { user } = useAuth();

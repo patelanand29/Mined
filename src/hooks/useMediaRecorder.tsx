@@ -13,6 +13,7 @@ interface UseMediaRecorderReturn {
   recordingTime: number;
   mediaUrl: string | null;
   mediaBlob: Blob | null;
+  stream: MediaStream | null;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
   pauseRecording: () => void;
@@ -174,6 +175,7 @@ export function useMediaRecorder({
     recordingTime,
     mediaUrl,
     mediaBlob,
+    stream: streamRef.current,
     startRecording,
     stopRecording,
     pauseRecording,

@@ -50,6 +50,7 @@ export default function Community() {
   const [expandedComments, setExpandedComments] = useState<string | null>(null);
   const [newComment, setNewComment] = useState('');
   const [commentAnonymous, setCommentAnonymous] = useState(false);
+  const [reactingPostId, setReactingPostId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPosts();
@@ -148,11 +149,50 @@ export default function Community() {
       return;
     }
 
+    // Prevent double-clicking
+    if (reactingPostId === postId) return;
+    setReactingPostId(postId);
+
     try {
       const post = posts.find(p => p.id === postId);
       if (!post) return;
 
-      if (post.user_reaction === reaction) {
+      const previousReaction = post.user_reaction;
+      const isRemovingReaction = previousReaction === reaction;
+
+      // Optimistic update
+      setPosts(prevPosts => prevPosts.map(p => {
+        if (p.id !== postId) return p;
+        
+        let newPost = { ...p };
+        
+        // Remove previous reaction count if switching
+        if (previousReaction && previousReaction !== reaction) {
+          const prevKey = `${previousReaction}_count` as keyof Post;
+          newPost = { ...newPost, [prevKey]: Math.max(0, (p[prevKey] as number) - 1) };
+        }
+        
+        const countKey = `${reaction}_count` as keyof Post;
+        if (isRemovingReaction) {
+          // Removing current reaction
+          newPost = { 
+            ...newPost, 
+            [countKey]: Math.max(0, (p[countKey] as number) - 1),
+            user_reaction: undefined 
+          };
+        } else {
+          // Adding new reaction
+          newPost = { 
+            ...newPost, 
+            [countKey]: (p[countKey] as number) + 1,
+            user_reaction: reaction 
+          };
+        }
+        
+        return newPost;
+      }));
+
+      if (isRemovingReaction) {
         // Remove reaction
         await supabase
           .from('post_reactions')
@@ -167,7 +207,7 @@ export default function Community() {
           .eq('id', postId);
       } else {
         // Remove old reaction if exists
-        if (post.user_reaction) {
+        if (previousReaction) {
           await supabase
             .from('post_reactions')
             .delete()
@@ -176,7 +216,7 @@ export default function Community() {
 
           await supabase
             .from('community_posts')
-            .update({ [`${post.user_reaction}_count`]: Math.max(0, post[`${post.user_reaction}_count` as keyof Post] as number - 1) })
+            .update({ [`${previousReaction}_count`]: Math.max(0, post[`${previousReaction}_count` as keyof Post] as number - 1) })
             .eq('id', postId);
         }
 
@@ -194,10 +234,13 @@ export default function Community() {
           .update({ [`${reaction}_count`]: post[`${reaction}_count`] + 1 })
           .eq('id', postId);
       }
-
-      fetchPosts();
     } catch (error) {
       console.error('Error reacting:', error);
+      // Revert on error
+      fetchPosts();
+      toast.error('Failed to react');
+    } finally {
+      setReactingPostId(null);
     }
   };
 
@@ -413,8 +456,9 @@ export default function Community() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className={`gap-1.5 ${post.user_reaction === 'support' ? 'text-rose-500' : ''}`}
+                        className={`gap-1.5 cursor-pointer ${post.user_reaction === 'support' ? 'text-rose-500 bg-rose-500/10' : ''}`}
                         onClick={() => handleReaction(post.id, 'support')}
+                        disabled={reactingPostId === post.id}
                       >
                         <Heart className={`w-4 h-4 ${post.user_reaction === 'support' ? 'fill-current' : ''}`} />
                         <span>{post.support_count}</span>
@@ -423,8 +467,9 @@ export default function Community() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className={`gap-1.5 ${post.user_reaction === 'relate' ? 'text-blue-500' : ''}`}
+                        className={`gap-1.5 cursor-pointer ${post.user_reaction === 'relate' ? 'text-blue-500 bg-blue-500/10' : ''}`}
                         onClick={() => handleReaction(post.id, 'relate')}
+                        disabled={reactingPostId === post.id}
                       >
                         🤝
                         <span>{post.relate_count}</span>
@@ -433,8 +478,9 @@ export default function Community() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className={`gap-1.5 ${post.user_reaction === 'helpful' ? 'text-amber-500' : ''}`}
+                        className={`gap-1.5 cursor-pointer ${post.user_reaction === 'helpful' ? 'text-amber-500 bg-amber-500/10' : ''}`}
                         onClick={() => handleReaction(post.id, 'helpful')}
+                        disabled={reactingPostId === post.id}
                       >
                         💡
                         <span>{post.helpful_count}</span>
@@ -443,7 +489,7 @@ export default function Community() {
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        className="gap-1.5 ml-auto"
+                        className="gap-1.5 ml-auto cursor-pointer"
                         onClick={() => setExpandedComments(expandedComments === post.id ? null : post.id)}
                       >
                         <MessageCircle className="w-4 h-4" />
