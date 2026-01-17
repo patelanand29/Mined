@@ -13,17 +13,21 @@ import {
   Users,
   Shield,
   Clock,
-  UserCircle
+  UserCircle,
+  Activity
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import LandingAnimation from '@/components/LandingAnimation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/hooks/useAuth';
+import { useRealtimeStats } from '@/hooks/useRealtimeStats';
+import ChatBuddy from '@/components/ChatBuddy';
 import minedLogo from '@/assets/mined-logo.png';
 
 export default function Index() {
   const { user } = useAuth();
+  const { stats } = useRealtimeStats();
   const [showAnimation, setShowAnimation] = useState(false);
   const [animationComplete, setAnimationComplete] = useState(false);
 
@@ -319,26 +323,61 @@ export default function Index() {
           <section className="py-12">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
               {[
-                { value: '10K+', label: 'Active Users' },
-                { value: '50K+', label: 'Mood Entries' },
-                { value: '500+', label: 'Counsellors' },
-                { value: '24/7', label: 'Crisis Support' },
-              ].map((stat, i) => (
-                <motion.div
-                  key={stat.label}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.9 + i * 0.1 }}
-                  className="p-4"
-                >
-                  <div className="font-display text-3xl md:text-4xl font-bold mined-text-gradient mb-1">
-                    {stat.value}
-                  </div>
-                  <div className="text-sm text-muted-foreground">{stat.label}</div>
-                </motion.div>
-              ))}
+                { 
+                  value: stats.activeUsers > 0 ? stats.activeUsers.toLocaleString() : '10K+', 
+                  label: 'Active Users',
+                  icon: Users,
+                  live: stats.activeUsers > 0
+                },
+                { 
+                  value: stats.moodEntries > 0 ? stats.moodEntries.toLocaleString() : '50K+', 
+                  label: 'Mood Entries',
+                  icon: Activity,
+                  live: stats.moodEntries > 0
+                },
+                { 
+                  value: stats.counsellors.toString() + '+', 
+                  label: 'Counsellors',
+                  icon: UserCircle,
+                  live: true
+                },
+                { 
+                  value: '24/7', 
+                  label: 'Crisis Support',
+                  icon: Heart,
+                  live: false
+                },
+              ].map((stat, i) => {
+                const Icon = stat.icon;
+                return (
+                  <motion.div
+                    key={stat.label}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.9 + i * 0.1 }}
+                    className="p-4 relative"
+                  >
+                    {stat.live && (
+                      <span className="absolute top-2 right-1/4 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                      </span>
+                    )}
+                    <div className="flex justify-center mb-2">
+                      <Icon className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div className="font-display text-3xl md:text-4xl font-bold mined-text-gradient mb-1">
+                      {stat.value}
+                    </div>
+                    <div className="text-sm text-muted-foreground">{stat.label}</div>
+                  </motion.div>
+                );
+              })}
             </div>
           </section>
+
+          {/* ChatBuddy */}
+          <ChatBuddy />
         </Layout>
       )}
     </>
